@@ -1,0 +1,44 @@
+name: Deploy to Play Store Internal
+
+on:
+  workflow_dispatch:
+  release:
+    types: [published]
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Java
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: 17
+
+      - name: Setup Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          flutter-version: stable
+          cache: true
+
+      - name: Get Packages
+        run: flutter pub get
+
+      - name: Generate L10n
+        run: flutter gen-l10n
+
+      - name: Build AAB
+        run: flutter build appbundle --flavor prod -t lib/main_prod.dart
+
+      - name: Deploy Internal Track
+        uses: r0adkll/upload-google-play@v1
+        with:
+          serviceAccountJsonPlainText: ${{ secrets.PLAY_STORE_JSON_KEY }}
+          packageName: com.trl.startup_launch
+          releaseFiles: build/app/outputs/bundle/prodRelease/*.aab
+          track: internal
+          status: completed

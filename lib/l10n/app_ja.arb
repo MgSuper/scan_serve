@@ -1,0 +1,79 @@
+{
+  "@@locale": "ja",
+  "appName": "スタートアップ・ランチャー",
+  "@appName": {
+    "description": "The name of the application"
+  },
+  "homeTitle": "ホーム",
+  "@homeTitle": {
+    "description": "Title displayed on the Home screen"
+  },
+  "settings": "設定",
+  "@settings": {
+    "description": "Label for the settings menu"
+  },
+  "changeLanguage": "言語切替",
+  "@changeLanguage": {
+    "description": "Label for the language selection option"
+  },
+  "appearance": "外観モード",
+  "@appearance": {
+    "description": "Label for the theme selection option"
+  },
+  "light": "ライト",
+  "@light": {
+    "description": "Label for the light theme selection option"
+  },
+  "dark": "ダーク",
+  "@dark": {
+    "description": "Label for the dark theme selection option"
+  },
+  "auto": "自動",
+  "@auto": {
+    "description": "Label for the auto theme selection option"
+  },
+  "skip": "スキップ",
+  "@skip": {
+    "description": "Label for onboarding skip"
+  },
+  "next": "次へ",
+  "@next": {
+    "description": "Label for onboarding next"
+  },
+  "getStarted": "始める",
+  "@getStarted": {
+    "description": "Label for onboarding getStarted"
+  },
+  "onboardingTitle1": "アイデアをより早く公開",
+  "@onboardingTitle1": {
+    "description": "Label for onboarding title 1"
+  },
+  "onboardingDesc1": "本番対応アーキテクチャ、テーマ、ルーティング、多言語対応付きで次のFlutterアプリを始められます。",
+  "@onboardingDesc1": {
+    "description": "Label for onboarding title 1 description"
+  },
+  "onboardingTitle2": "本気のスタートアップ向け",
+  "@onboardingTitle2": {
+    "description": "Label for onboarding title 2"
+  },
+  "onboardingDesc2": "クリーン構成、拡張しやすい状態管理、ネットワーク、CI/CD を初日から利用できます。",
+  "@onboardingDesc2": {
+    "description": "Label for onboarding title 2 description"
+  },
+  "onboardingTitle3": "数週間分の設定時間を節約",
+  "@onboardingTitle3": {
+    "description": "Label for onboarding title 3"
+  },
+  "onboardingDesc3": "新規プロジェクトごとに flavor、名前変更、テスト、アイコン、定型コードを繰り返す必要はありません。",
+  "@onboardingDesc3": {
+    "description": "Label for onboarding title 3 description"
+  },
+  "onboardingTitle4": "作る。公開する。成長する。",
+  "@onboardingTitle4": {
+    "description": "Label for onboarding title 4"
+  },
+  "onboardingDesc4": "Startup Launch で本当に重要な課題解決と素早いリリースに集中できます。",
+  "@onboardingDesc4": {
+    "description": "Label for onboarding title 4 description"
+  }
+}

@@ -1,0 +1,79 @@
+{
+  "@@locale": "en",
+  "appName": "Startup Launcher",
+  "@appName": {
+    "description": "The name of the application"
+  },
+  "homeTitle": "Home",
+  "@homeTitle": {
+    "description": "Title for the home screen"
+  },
+  "settings": "Settings",
+  "@settings": {
+    "description": "Title for the settings screen"
+  },
+  "changeLanguage": "Change Language",
+  "@changeLanguage": {
+    "description": "Label for the language selection option"
+  },
+  "appearance": "Appearance",
+  "@appearance": {
+    "description": "Label for the theme selection option"
+  },
+  "light": "Light",
+  "@light": {
+    "description": "Label for the light theme selection option"
+  },
+  "dark": "Dark",
+  "@dark": {
+    "description": "Label for the dark theme selection option"
+  },
+  "auto": "Auto",
+  "@auto": {
+    "description": "Label for the auto theme selection option"
+  },
+  "skip": "Skip",
+  "@skip": {
+    "description": "Label for onboarding skip"
+  },
+  "next": "Next",
+  "@next": {
+    "description": "Label for onboarding next"
+  },
+  "getStarted": "Get Started",
+  "@getStarted": {
+    "description": "Label for onboarding getStarted"
+  },
+  "onboardingTitle1": "Launch ideas faster",
+  "@onboardingTitle1": {
+    "description": "Label for onboarding title 1"
+  },
+  "onboardingDesc1": "Start your next Flutter app with production-ready architecture, themes, routing, and localization already setup.",
+  "@onboardingDesc1": {
+    "description": "Label for onboarding title 1 description"
+  },
+  "onboardingTitle2": "Built for serious startups",
+  "@onboardingTitle2": {
+    "description": "Label for onboarding title 2"
+  },
+  "onboardingDesc2": "Use clean structure, scalable state management, networking, and CI/CD from day one.",
+  "@onboardingDesc2": {
+    "description": "Label for onboarding title 2 description"
+  },
+  "onboardingTitle3": "Save weeks of setup",
+  "@onboardingTitle3": {
+    "description": "Label for onboarding title 3"
+  },
+  "onboardingDesc3": "No more repeating flavors, rename configs, tests, icons, or boilerplate every new project.",
+  "@onboardingDesc3": {
+    "description": "Label for onboarding title 3 description"
+  },
+  "onboardingTitle4": "Build. Launch. Grow.",
+  "@onboardingTitle4": {
+    "description": "Label for onboarding title 4"
+  },
+  "onboardingDesc4": "Focus on solving real problems and shipping products faster with Startup Launch.",
+  "@onboardingDesc4": {
+    "description": "Label for onboarding title 4 description"
+  }
+}

@@ -1,0 +1,79 @@
+{
+  "@@locale": "th",
+  "appName": "ตัวเปิดสตาร์ทอัพ",
+  "@appName": {
+    "description": "The name of the application"
+  },
+  "homeTitle": "หน้าแรก",
+  "@homeTitle": {
+    "description": "Title displayed on the Home screen"
+  },
+  "settings": "การตั้งค่า",
+  "@settings": {
+    "description": "Label for the settings menu"
+  },
+  "changeLanguage": "เปลี่ยนภาษา",
+  "@changeLanguage": {
+    "description": "Label for the language selection option"
+  },
+  "appearance": "การปรากฏ",
+  "@appearance": {
+    "description": "Label for the theme selection option"
+  },
+  "light": "สว่าง",
+  "@light": {
+    "description": "Label for the light theme selection option"
+  },
+  "dark": "มืด",
+  "@dark": {
+    "description": "Label for the dark theme selection option"
+  },
+  "auto": "อัตโนมัติ",
+  "@auto": {
+    "description": "Label for the auto theme selection option"
+  },
+  "skip": "ข้าม",
+  "@skip": {
+    "description": "Label for onboarding skip"
+  },
+  "next": "ถัดไป",
+  "@next": {
+    "description": "Label for onboarding next"
+  },
+  "getStarted": "เริ่มต้น",
+  "@getStarted": {
+    "description": "Label for onboarding getStarted"
+  },
+  "onboardingTitle1": "เปิดตัวไอเดียได้เร็วขึ้น",
+  "@onboardingTitle1": {
+    "description": "Label for onboarding title 1"
+  },
+  "onboardingDesc1": "เริ่มแอป Flutter ตัวถัดไปด้วยโครงสร้างพร้อมใช้งานจริง ระบบธีม เส้นทาง และหลายภาษาที่ตั้งค่าไว้แล้ว",
+  "@onboardingDesc1": {
+    "description": "Label for onboarding title 1 description"
+  },
+  "onboardingTitle2": "สร้างมาเพื่อสตาร์ทอัพจริงจัง",
+  "@onboardingTitle2": {
+    "description": "Label for onboarding title 2"
+  },
+  "onboardingDesc2": "ใช้โครงสร้างที่เป็นระเบียบ การจัดการสถานะที่ขยายได้ ระบบเครือข่าย และ CI/CD ตั้งแต่วันแรก",
+  "@onboardingDesc2": {
+    "description": "Label for onboarding title 2 description"
+  },
+  "onboardingTitle3": "ประหยัดเวลาหลายสัปดาห์",
+  "@onboardingTitle3": {
+    "description": "Label for onboarding title 3"
+  },
+  "onboardingDesc3": "ไม่ต้องทำซ้ำเรื่อง flavors การเปลี่ยนชื่อแอป tests icons หรือ boilerplate ทุกครั้งที่เริ่มโปรเจกต์ใหม่",
+  "@onboardingDesc3": {
+    "description": "Label for onboarding title 3 description"
+  },
+  "onboardingTitle4": "สร้าง เปิดตัว เติบโต",
+  "@onboardingTitle4": {
+    "description": "Label for onboarding title 4"
+  },
+  "onboardingDesc4": "โฟกัสกับการแก้ปัญหาจริง และปล่อยโปรดักต์ได้เร็วขึ้นด้วย Startup Launch",
+  "@onboardingDesc4": {
+    "description": "Label for onboarding title 4 description"
+  }
+}

@@ -1,0 +1,79 @@
+{
+  "@@locale": "vi",
+  "appName": "Khoi Tao Startup",
+  "@appName": {
+    "description": "The name of the application"
+  },
+  "homeTitle": "Trang Chủ",
+  "@homeTitle": {
+    "description": "Title displayed on the Home screen"
+  },
+  "settings": "Cài Đặt",
+  "@settings": {
+    "description": "Label for the settings menu"
+  },
+  "changeLanguage": "Đổi Ngôn Ngữ",
+  "@changeLanguage": {
+    "description": "Label for the language selection option"
+  },
+  "appearance": "Giao diện",
+  "@appearance": {
+    "description": "Label for the theme selection option"
+  },
+  "light": "Sáng",
+  "@light": {
+    "description": "Label for the light theme selection option"
+  },
+  "dark": "Tối",
+  "@dark": {
+    "description": "Label for the dark theme selection option"
+  },
+  "auto": "Tự động",
+  "@auto": {
+    "description": "Label for the auto theme selection option"
+  },
+  "skip": "Bỏ qua",
+  "@skip": {
+    "description": "Label for onboarding skip"
+  },
+  "next": "Tiếp theo",
+  "@next": {
+    "description": "Label for onboarding next"
+  },
+  "getStarted": "Bắt đầu",
+  "@getStarted": {
+    "description": "Label for onboarding getStarted"
+  },
+  "onboardingTitle1": "Ra mắt ý tưởng nhanh hơn",
+  "@onboardingTitle1": {
+    "description": "Label for onboarding title 1"
+  },
+  "onboardingDesc1": "Bắt đầu ứng dụng Flutter tiếp theo với kiến trúc production, theme, routing và đa ngôn ngữ đã sẵn sàng.",
+  "@onboardingDesc1": {
+    "description": "Label for onboarding title 1 description"
+  },
+  "onboardingTitle2": "Dành cho startup nghiêm túc",
+  "@onboardingTitle2": {
+    "description": "Label for onboarding title 2"
+  },
+  "onboardingDesc2": "Sử dụng cấu trúc sạch, quản lý trạng thái mở rộng tốt, networking và CI/CD ngay từ ngày đầu.",
+  "@onboardingDesc2": {
+    "description": "Label for onboarding title 2 description"
+  },
+  "onboardingTitle3": "Tiết kiệm hàng tuần thiết lập",
+  "@onboardingTitle3": {
+    "description": "Label for onboarding title 3"
+  },
+  "onboardingDesc3": "Không cần lặp lại flavors, đổi tên app, tests, icons hay boilerplate cho mỗi dự án mới.",
+  "@onboardingDesc3": {
+    "description": "Label for onboarding title 3 description"
+  },
+  "onboardingTitle4": "Xây dựng. Ra mắt. Phát triển.",
+  "@onboardingTitle4": {
+    "description": "Label for onboarding title 4"
+  },
+  "onboardingDesc4": "Tập trung giải quyết vấn đề thật và phát hành sản phẩm nhanh hơn với Startup Launch.",
+  "@onboardingDesc4": {
+    "description": "Label for onboarding title 4 description"
+  }
+}

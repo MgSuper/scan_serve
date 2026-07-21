@@ -1,0 +1,99 @@
+name: Flutter CI
+
+on:
+  push:
+    branches: [main, develop]
+  pull_request:
+  release:
+    types: [published]
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Java
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: 17
+
+      - name: Setup Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+          flutter-version: 3.41.1
+          cache: true
+
+      - name: Get Dependencies
+        run: flutter pub get
+
+      - name: Generate Localization
+        run: flutter gen-l10n
+
+      - name: Analyze
+        run: flutter analyze
+
+      - name: Run Tests With Coverage
+        run: flutter test --coverage
+
+      - name: Build Dev APK
+        run: flutter build apk --flavor dev -t lib/main_dev.dart
+
+      - name: Build Prod APK
+        run: flutter build apk --flavor prod -t lib/main_prod.dart
+
+      - name: Build Prod AAB
+        run: flutter build appbundle --flavor prod -t lib/main_prod.dart
+
+      - name: Upload CI Artifact APK
+        uses: actions/upload-artifact@v4
+        with:
+          name: dev-apk
+          path: build/app/outputs/flutter-apk/*.apk
+
+      - name: Upload CI Artifact AAB
+        uses: actions/upload-artifact@v4
+        with:
+          name: prod-aab
+          path: build/app/outputs/bundle/prodRelease/*.aab
+
+      - name: Attach Release Files
+        if: github.event_name == 'release'
+        uses: softprops/action-gh-release@v2
+        with:
+          files: |
+            build/app/outputs/flutter-apk/*.apk
+            build/app/outputs/bundle/prodRelease/*.aab
+
+      - name: Telegram Notification
+        if: always()
+        run: |
+          STATUS="${{ job.status }}"
+          REPO="${{ github.repository }}"
+          BRANCH="${{ github.ref_name }}"
+          ACTOR="${{ github.actor }}"
+          COMMIT="${{ github.event.head_commit.message }}"
+          RUN="${{ github.run_number }}"
+
+          if [ "$STATUS" = "success" ]; then
+            ICON="✅"
+          else
+            ICON="❌"
+          fi
+
+          # Construct the message
+          MESSAGE="$ICON CI $STATUS
+          📦 Repo: $REPO
+          🌿 Branch: $BRANCH
+          👤 Actor: $ACTOR
+          📝 Commit: $COMMIT
+          🔢 Run: #$RUN"
+
+          # Send to Telegram
+          curl -s -X POST https://api.telegram.org/bot${{ secrets.TELEGRAM_BOT_TOKEN }}/sendMessage \
+            -d chat_id=${{ secrets.TELEGRAM_CHAT_ID }} \
+            -d text="$MESSAGE"
