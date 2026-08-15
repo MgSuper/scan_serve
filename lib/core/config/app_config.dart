@@ -25,7 +25,7 @@ class AppConfig {
         return const AppConfig(
           env: Environment.dev,
           baseUrl: 'https://dev.api.com',
-          appName: 'Startup Launch Dev',
+          appName: 'ScanServe Dev',
           bannerColor: Colors.green,
         );
 
@@ -33,7 +33,7 @@ class AppConfig {
         return const AppConfig(
           env: Environment.staging,
           baseUrl: 'https://staging.api.com',
-          appName: 'Startup Launch Staging',
+          appName: 'ScanServe Staging',
           bannerColor: Colors.orange,
         );
 
@@ -41,7 +41,7 @@ class AppConfig {
         return const AppConfig(
           env: Environment.prod,
           baseUrl: 'https://api.com',
-          appName: 'Startup Launch',
+          appName: 'ScanServe',
           bannerColor: Colors.red,
         );
     }

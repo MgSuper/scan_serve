@@ -90,12 +90,12 @@ BEGIN
         BLOCK "040904e4"
         BEGIN
             VALUE "CompanyName", "com.trl" "\0"
-            VALUE "FileDescription", "startup_launch" "\0"
+            VALUE "FileDescription", "scan_serve" "\0"
             VALUE "FileVersion", VERSION_AS_STRING "\0"
-            VALUE "InternalName", "startup_launch" "\0"
+            VALUE "InternalName", "scan_serve" "\0"
             VALUE "LegalCopyright", "Copyright (C) 2026 com.trl. All rights reserved." "\0"
-            VALUE "OriginalFilename", "startup_launch.exe" "\0"
-            VALUE "ProductName", "startup_launch" "\0"
+            VALUE "OriginalFilename", "scan_serve.exe" "\0"
+            VALUE "ProductName", "scan_serve" "\0"
             VALUE "ProductVersion", VERSION_AS_STRING "\0"
         END
     END

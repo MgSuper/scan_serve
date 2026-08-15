@@ -1,13 +1,13 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:go_router/go_router.dart';
-import 'package:startup_launch/app/routes/app_routes.dart';
-import 'package:startup_launch/core/di/service_locator.dart';
-import 'package:startup_launch/features/home/presentation/home_screen.dart';
-import 'package:startup_launch/features/onboarding/data/onboarding_storage.dart';
-import 'package:startup_launch/features/onboarding/presentation/cubit/onboarding_cubit.dart';
-import 'package:startup_launch/features/onboarding/presentation/onboarding_screen.dart';
-import 'package:startup_launch/features/settings/presentation/screens/settings_screen.dart';
+import 'package:scan_serve/app/routes/app_routes.dart';
+import 'package:scan_serve/core/di/service_locator.dart';
+import 'package:scan_serve/features/home/presentation/home_screen.dart';
+import 'package:scan_serve/features/onboarding/data/onboarding_storage.dart';
+import 'package:scan_serve/features/onboarding/presentation/cubit/onboarding_cubit.dart';
+import 'package:scan_serve/features/onboarding/presentation/onboarding_screen.dart';
+import 'package:scan_serve/features/settings/presentation/screens/settings_screen.dart';
 
 class AppRouter {
   static GoRouter createRouter({required bool showOnboardingFirst}) {

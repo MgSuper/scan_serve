@@ -1,4 +1,4 @@
-![CI](https://github.com/MgSuper/startup_launch/actions/workflows/flutter_elite_ci.yml/badge.svg)
+![CI](https://github.com/MgSuper/scan_serve/actions/workflows/flutter_elite_ci.yml/badge.svg)
 
 # Startup Launch
 

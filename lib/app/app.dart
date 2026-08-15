@@ -1,13 +1,13 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:go_router/go_router.dart';
-import 'package:startup_launch/app/localization/locale_cubit.dart';
-import 'package:startup_launch/app/routes/router.dart';
-import 'package:startup_launch/app/theme/app_theme.dart';
-import 'package:startup_launch/app/theme/theme_cubit.dart';
-import 'package:startup_launch/core/config/app_config.dart';
-import 'package:startup_launch/core/di/service_locator.dart';
-import 'package:startup_launch/l10n/generated/app_localizations.dart';
+import 'package:scan_serve/app/localization/locale_cubit.dart';
+import 'package:scan_serve/app/routes/router.dart';
+import 'package:scan_serve/app/theme/app_theme.dart';
+import 'package:scan_serve/app/theme/theme_cubit.dart';
+import 'package:scan_serve/core/config/app_config.dart';
+import 'package:scan_serve/core/di/service_locator.dart';
+import 'package:scan_serve/l10n/generated/app_localizations.dart';
 
 class App extends StatelessWidget {
   const App({super.key, required this.showOnboardingFirst});

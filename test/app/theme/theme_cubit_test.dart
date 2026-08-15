@@ -1,7 +1,7 @@
 import 'package:bloc_test/bloc_test.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:startup_launch/app/theme/theme_cubit.dart';
+import 'package:scan_serve/app/theme/theme_cubit.dart';
 
 void main() {
   group('ThemeCubit', () {

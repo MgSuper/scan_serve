@@ -1,7 +1,7 @@
 import 'package:dio/dio.dart';
-import 'package:startup_launch/core/network/interceptors/auth_interceptor.dart';
-import 'package:startup_launch/core/network/interceptors/connectivity_interceptor.dart';
-import 'package:startup_launch/core/network/interceptors/logger_interceptor.dart';
+import 'package:scan_serve/core/network/interceptors/auth_interceptor.dart';
+import 'package:scan_serve/core/network/interceptors/connectivity_interceptor.dart';
+import 'package:scan_serve/core/network/interceptors/logger_interceptor.dart';
 
 class DioFactory {
   static Dio create() {

@@ -1,13 +1,13 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:flutter_native_splash/flutter_native_splash.dart';
-import 'package:startup_launch/app/app.dart';
-import 'package:startup_launch/app/localization/locale_cubit.dart';
-import 'package:startup_launch/core/config/app_config.dart';
-import 'package:startup_launch/core/config/environment.dart';
-import 'package:startup_launch/core/di/service_locator.dart';
-import 'package:startup_launch/core/utils/app_bloc_observer.dart';
-import 'package:startup_launch/features/onboarding/data/onboarding_storage.dart';
+import 'package:scan_serve/app/app.dart';
+import 'package:scan_serve/app/localization/locale_cubit.dart';
+import 'package:scan_serve/core/config/app_config.dart';
+import 'package:scan_serve/core/config/environment.dart';
+import 'package:scan_serve/core/di/service_locator.dart';
+import 'package:scan_serve/core/utils/app_bloc_observer.dart';
+import 'package:scan_serve/features/onboarding/data/onboarding_storage.dart';
 
 Future<void> bootstrap(Environment env) async {
   final widgetsBinding = WidgetsFlutterBinding.ensureInitialized();

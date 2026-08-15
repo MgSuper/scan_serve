@@ -1,10 +1,12 @@
 import 'package:get_it/get_it.dart';
-import 'package:startup_launch/app/localization/locale_cubit.dart';
-import 'package:startup_launch/app/theme/theme_cubit.dart';
-import 'package:startup_launch/core/config/app_config.dart';
-import 'package:startup_launch/core/network/api_client.dart';
-import 'package:startup_launch/core/network/dio_factory.dart';
-import 'package:startup_launch/features/onboarding/data/onboarding_storage.dart';
+import 'package:scan_serve/app/localization/locale_cubit.dart';
+import 'package:scan_serve/app/theme/theme_cubit.dart';
+import 'package:scan_serve/core/config/app_config.dart';
+import 'package:scan_serve/core/network/api_client.dart';
+import 'package:scan_serve/core/network/dio_factory.dart';
+import 'package:scan_serve/features/onboarding/data/onboarding_storage.dart';
+import 'package:scan_serve/features/customer/data/demo_customer_repository.dart';
+import 'package:scan_serve/features/customer/domain/customer_repository.dart';
 
 final sl = GetIt.instance;
 
@@ -26,5 +28,9 @@ Future<void> setupLocator(AppConfig config) async {
     sl.registerLazySingleton<OnboardingStorage>(
       SharedPrefsOnboardingStorage.new,
     );
+  }
+
+  if (!sl.isRegistered<CustomerRepository>()) {
+    sl.registerLazySingleton<CustomerRepository>(DemoCustomerRepository.new);
   }
 }

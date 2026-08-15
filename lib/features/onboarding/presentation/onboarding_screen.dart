@@ -1,12 +1,12 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:go_router/go_router.dart';
-import 'package:startup_launch/app/localization/locale_cubit.dart';
-import 'package:startup_launch/app/routes/app_routes.dart';
-import 'package:startup_launch/core/extensions/l10n.dart';
-import 'package:startup_launch/features/onboarding/presentation/cubit/onboarding_cubit.dart';
-import 'package:startup_launch/features/onboarding/presentation/cubit/onboarding_state.dart';
-import 'package:startup_launch/features/onboarding/presentation/typewriter_text.dart';
+import 'package:scan_serve/app/localization/locale_cubit.dart';
+import 'package:scan_serve/app/routes/app_routes.dart';
+import 'package:scan_serve/core/extensions/l10n.dart';
+import 'package:scan_serve/features/onboarding/presentation/cubit/onboarding_cubit.dart';
+import 'package:scan_serve/features/onboarding/presentation/cubit/onboarding_state.dart';
+import 'package:scan_serve/features/onboarding/presentation/typewriter_text.dart';
 
 class OnboardingScreen extends StatefulWidget {
   const OnboardingScreen({super.key});

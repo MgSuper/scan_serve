@@ -1,6 +1,6 @@
 import 'package:flutter_bloc/flutter_bloc.dart';
-import 'package:startup_launch/features/onboarding/data/onboarding_storage.dart';
-import 'package:startup_launch/features/onboarding/presentation/cubit/onboarding_state.dart';
+import 'package:scan_serve/features/onboarding/data/onboarding_storage.dart';
+import 'package:scan_serve/features/onboarding/presentation/cubit/onboarding_state.dart';
 
 class OnboardingCubit extends Cubit<OnboardingState> {
   OnboardingCubit({required OnboardingStorage storage})

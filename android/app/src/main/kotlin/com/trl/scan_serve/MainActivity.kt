@@ -1,4 +1,4 @@
-package com.trl.startup_launch
+package com.trl.scan_serve
 
 import io.flutter.embedding.android.FlutterActivity
 

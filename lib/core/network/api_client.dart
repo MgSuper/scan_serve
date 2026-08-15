@@ -1,5 +1,5 @@
 import 'package:dio/dio.dart';
-import 'package:startup_launch/core/network/exceptions/app_exception.dart';
+import 'package:scan_serve/core/network/exceptions/app_exception.dart';
 
 class ApiClient {
   final Dio dio;

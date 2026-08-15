@@ -1,6 +1,6 @@
 {
-    "name": "startup_launch",
-    "short_name": "startup_launch",
+    "name": "scan_serve",
+    "short_name": "scan_serve",
     "start_url": ".",
     "display": "standalone",
     "background_color": "#0175C2",

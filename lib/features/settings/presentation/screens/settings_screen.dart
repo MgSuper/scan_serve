@@ -1,8 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
-import 'package:startup_launch/app/localization/locale_cubit.dart';
-import 'package:startup_launch/app/theme/theme_cubit.dart';
-import 'package:startup_launch/core/extensions/l10n.dart';
+import 'package:scan_serve/app/localization/locale_cubit.dart';
+import 'package:scan_serve/app/theme/theme_cubit.dart';
+import 'package:scan_serve/core/extensions/l10n.dart';
 
 class SettingsPage extends StatelessWidget {
   const SettingsPage({super.key});
