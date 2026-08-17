@@ -1,7 +1,7 @@
 import { inject, Injectable, Injector, runInInjectionContext } from '@angular/core';
-import { collection, collectionSnapshots, Firestore, query, where } from '@angular/fire/firestore';
+import { collection, collectionData, Firestore, query, where } from '@angular/fire/firestore';
 import { Functions, httpsCallable } from '@angular/fire/functions';
-import { catchError, from, map, Observable, retry, throwError } from 'rxjs';
+import { catchError, from, map, Observable, of, startWith, throwError } from 'rxjs';
 
 import { normalizeRestaurantId } from '../../../shared/restaurant-context';
 import {
@@ -50,16 +50,15 @@ export class KitchenRepositoryImpl extends KitchenRepository {
         where('status', 'in', KITCHEN_ORDER_STATUSES),
       );
 
-      return collectionSnapshots(restaurantOrders).pipe(
-        map((snapshots) =>
-          snapshots
-            .map((snapshot) =>
-              toKitchenOrder({ id: snapshot.id, ...snapshot.data() } as KitchenOrderDto),
-            )
+      return collectionData(restaurantOrders, { idField: 'id' }).pipe(
+        map((documents) =>
+          documents
+            .map((document) => toKitchenOrder(document as KitchenOrderDto))
             .filter((order): order is KitchenOrder => order !== null)
             .sort((left, right) => left.createdAt.getTime() - right.createdAt.getTime()),
         ),
-        retry({ delay: 1000 }),
+        startWith([] as readonly KitchenOrder[]),
+        catchError(() => of([] as readonly KitchenOrder[])),
       );
     });
   }

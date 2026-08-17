@@ -2,13 +2,13 @@ import { inject, Injectable, Injector, runInInjectionContext } from '@angular/co
 import {
   addDoc,
   collection,
-  collectionSnapshots,
+  collectionData,
   doc,
   Firestore,
   serverTimestamp,
   updateDoc,
 } from '@angular/fire/firestore';
-import { catchError, from, map, Observable, retry, throwError } from 'rxjs';
+import { catchError, from, map, Observable, of, startWith, throwError } from 'rxjs';
 
 import { normalizeRestaurantId } from '../../../shared/restaurant-context';
 import {
@@ -45,19 +45,15 @@ export class MenuRepositoryImpl extends MenuRepository {
     const resolvedRestaurantId = normalizeRestaurantId(restaurantId);
     return runInInjectionContext(this.injector, () => {
       const menu = collection(this.firestore, `restaurants/${resolvedRestaurantId}/menu`);
-      return collectionSnapshots(menu).pipe(
-        map((snapshots) =>
-          snapshots
-            .map((snapshot) =>
-              toMenuItem(
-                { id: snapshot.id, ...snapshot.data() } as MenuItemDto,
-                resolvedRestaurantId,
-              ),
-            )
+      return collectionData(menu, { idField: 'id' }).pipe(
+        map((documents) =>
+          documents
+            .map((document) => toMenuItem(document as MenuItemDto, resolvedRestaurantId))
             .filter((item): item is MenuItem => item !== null)
             .sort((left, right) => left.name.localeCompare(right.name)),
         ),
-        retry({ delay: 1000 }),
+        startWith([] as readonly MenuItem[]),
+        catchError(() => of([] as readonly MenuItem[])),
       );
     });
   }
