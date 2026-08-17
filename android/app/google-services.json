@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "883565727878",
+    "project_id": "scanserve-app-1010",
+    "storage_bucket": "scanserve-app-1010.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:883565727878:android:dafbd542cae90758d98107",
+        "android_client_info": {
+          "package_name": "com.trl.scan_serve"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyD3W9958SDqpNxECn_dfDd8rIM_NkzP3aY"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

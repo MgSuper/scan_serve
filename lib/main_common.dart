@@ -9,6 +9,7 @@ import 'package:scan_serve/core/config/environment.dart';
 import 'package:scan_serve/core/di/service_locator.dart';
 import 'package:scan_serve/core/utils/app_bloc_observer.dart';
 import 'package:scan_serve/features/onboarding/data/onboarding_storage.dart';
+import 'package:scan_serve/firebase_options.dart';
 
 Future<void> bootstrap(Environment env) async {
   final widgetsBinding = WidgetsFlutterBinding.ensureInitialized();
@@ -17,7 +18,7 @@ Future<void> bootstrap(Environment env) async {
 
   final config = AppConfig.from(env);
 
-  await Firebase.initializeApp();
+  await Firebase.initializeApp(options: DefaultFirebaseOptions.currentPlatform);
   await setupLocator(config);
 
   await sl<LocaleCubit>().init();
