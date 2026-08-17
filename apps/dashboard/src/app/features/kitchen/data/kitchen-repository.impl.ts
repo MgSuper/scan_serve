@@ -43,9 +43,8 @@ export class KitchenRepositoryImpl extends KitchenRepository {
   watchActiveOrders(restaurantId: string): Observable<readonly KitchenOrder[]> {
     const resolvedRestaurantId = normalizeRestaurantId(restaurantId);
     return runInInjectionContext(this.injector, () => {
-      const orders = collection(this.firestore, 'orders');
       const restaurantOrders = query(
-        orders,
+        collection(this.firestore, 'orders'),
         where('restaurantId', '==', resolvedRestaurantId),
         where('status', 'in', KITCHEN_ORDER_STATUSES),
       );

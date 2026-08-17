@@ -3,6 +3,7 @@ import {
   addDoc,
   collection,
   collectionData,
+  query,
   doc,
   Firestore,
   serverTimestamp,
@@ -44,7 +45,7 @@ export class MenuRepositoryImpl extends MenuRepository {
   watchMenu(restaurantId: string): Observable<readonly MenuItem[]> {
     const resolvedRestaurantId = normalizeRestaurantId(restaurantId);
     return runInInjectionContext(this.injector, () => {
-      const menu = collection(this.firestore, `restaurants/${resolvedRestaurantId}/menu`);
+      const menu = query(collection(this.firestore, `restaurants/${resolvedRestaurantId}/menu`));
       return collectionData(menu, { idField: 'id' }).pipe(
         map((documents) =>
           documents
