@@ -1,5 +1,5 @@
 export const environment = {
-  production: false,
+  production: true,
   firebase: {
     apiKey: 'AIzaSyAzLUHa-EHLUJS4dQIaEPnnYIW5g6XdnHY',
     authDomain: 'scanserve-app-1010.firebaseapp.com',
