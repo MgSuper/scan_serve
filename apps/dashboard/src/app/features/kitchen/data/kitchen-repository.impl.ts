@@ -52,7 +52,7 @@ export class KitchenRepositoryImpl extends KitchenRepository {
     return runInInjectionContext(this.injector, () => {
       return new Observable<KitchenOrderDto[]>((observer) => {
         const restaurantOrders = query(
-          collection(this.firestore, 'orders'),
+          collection(this.firestore, `restaurants/${resolvedRestaurantId}/orders`),
           where('restaurantId', '==', resolvedRestaurantId),
           where('status', 'in', KITCHEN_ORDER_STATUSES),
         );

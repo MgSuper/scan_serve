@@ -8,7 +8,6 @@ import 'package:scan_serve/core/config/app_config.dart';
 import 'package:scan_serve/core/config/environment.dart';
 import 'package:scan_serve/core/di/service_locator.dart';
 import 'package:scan_serve/core/utils/app_bloc_observer.dart';
-import 'package:scan_serve/features/onboarding/data/onboarding_storage.dart';
 import 'package:scan_serve/firebase_options.dart';
 
 Future<void> bootstrap(Environment env) async {
@@ -25,9 +24,7 @@ Future<void> bootstrap(Environment env) async {
 
   Bloc.observer = AppBlocObserver();
 
-  final onboardingCompleted = await sl<OnboardingStorage>().isCompleted();
-
-  runApp(App(showOnboardingFirst: !onboardingCompleted));
+  runApp(const App());
   FlutterNativeSplash.remove();
 }
 

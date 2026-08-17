@@ -19,7 +19,6 @@ import 'package:scan_serve/features/menu/data/menu_repository_impl.dart';
 import 'package:scan_serve/features/menu/domain/repositories/menu_repository.dart';
 import 'package:scan_serve/features/menu/domain/use_cases/get_active_menu.dart';
 import 'package:scan_serve/features/menu/presentation/bloc/menu_bloc.dart';
-import 'package:scan_serve/features/onboarding/data/onboarding_storage.dart';
 
 final sl = GetIt.instance;
 
@@ -92,12 +91,6 @@ Future<void> setupLocator(AppConfig config) async {
         submitOrder: sl<SubmitOrderUseCase>(),
         initialState: initialState,
       ),
-    );
-  }
-
-  if (!sl.isRegistered<OnboardingStorage>()) {
-    sl.registerLazySingleton<OnboardingStorage>(
-      SharedPrefsOnboardingStorage.new,
     );
   }
 

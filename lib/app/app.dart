@@ -10,16 +10,12 @@ import 'package:scan_serve/core/di/service_locator.dart';
 import 'package:scan_serve/l10n/generated/app_localizations.dart';
 
 class App extends StatelessWidget {
-  const App({super.key, required this.showOnboardingFirst});
-
-  final bool showOnboardingFirst;
+  const App({super.key});
 
   @override
   Widget build(BuildContext context) {
     final config = sl<AppConfig>();
-    final GoRouter router = AppRouter.createRouter(
-      showOnboardingFirst: showOnboardingFirst,
-    );
+    final GoRouter router = AppRouter.createRouter();
     return MultiBlocProvider(
       providers: [
         BlocProvider.value(value: sl<ThemeCubit>()),

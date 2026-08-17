@@ -12,6 +12,7 @@ export interface KitchenOrderDto {
   readonly status?: unknown;
   readonly subtotal?: unknown;
   readonly total?: unknown;
+  readonly totalAmount?: unknown;
   readonly totalQuantity?: unknown;
   readonly customerNote?: unknown;
   readonly submittedAt?: unknown;
@@ -43,7 +44,7 @@ export function toKitchenOrder(dto: KitchenOrderDto): KitchenOrder | null {
     tableSessionId: dto.tableSessionId,
     customerSessionId: dto.customerSessionId,
     status: dto.status,
-    total: toNumber(dto.total ?? dto.subtotal),
+    total: toNumber(dto.total ?? dto.subtotal ?? dto.totalAmount),
     totalQuantity: toNumber(dto.totalQuantity),
     customerNote: typeof dto.customerNote === 'string' ? dto.customerNote : null,
     submittedAt,

@@ -10,28 +10,14 @@ import 'package:scan_serve/features/cart/presentation/pages/cart_page.dart';
 import 'package:scan_serve/features/home/presentation/home_screen.dart';
 import 'package:scan_serve/features/menu/presentation/bloc/menu_bloc.dart';
 import 'package:scan_serve/features/menu/presentation/pages/menu_page.dart';
-import 'package:scan_serve/features/onboarding/data/onboarding_storage.dart';
-import 'package:scan_serve/features/onboarding/presentation/cubit/onboarding_cubit.dart';
-import 'package:scan_serve/features/onboarding/presentation/onboarding_screen.dart';
 import 'package:scan_serve/features/order_tracking/presentation/pages/order_tracking_page.dart';
 import 'package:scan_serve/features/settings/presentation/screens/settings_screen.dart';
 
 class AppRouter {
-  static GoRouter createRouter({required bool showOnboardingFirst}) {
+  static GoRouter createRouter() {
     return GoRouter(
-      initialLocation: showOnboardingFirst
-          ? AppRoutes.onboarding
-          : AppRoutes.home,
+      initialLocation: AppRoutes.home,
       routes: <RouteBase>[
-        GoRoute(
-          path: AppRoutes.onboarding,
-          pageBuilder: (context, state) => MaterialPage(
-            child: BlocProvider(
-              create: (_) => OnboardingCubit(storage: sl<OnboardingStorage>()),
-              child: const OnboardingScreen(),
-            ),
-          ),
-        ),
         GoRoute(
           path: AppRoutes.home,
           pageBuilder: (context, state) =>
