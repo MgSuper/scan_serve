@@ -107,7 +107,7 @@ Future<void> setupLocator(AppConfig config) async {
         firestore: sl<FirebaseFirestore>(),
         restaurantId: const String.fromEnvironment(
           'SCAN_SERVE_RESTAURANT_ID',
-          defaultValue: 'restaurant-demo',
+          defaultValue: 'scanserve-demo',
         ),
         branchId: const String.fromEnvironment(
           'SCAN_SERVE_BRANCH_ID',

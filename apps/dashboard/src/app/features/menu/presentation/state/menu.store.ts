@@ -2,6 +2,7 @@ import { computed, DestroyRef, inject, Injectable, signal } from '@angular/core'
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { catchError, finalize, Observable, Subscription, take, throwError } from 'rxjs';
 
+import { normalizeRestaurantId } from '../../../../shared/restaurant-context';
 import {
   CreateMenuItemInput,
   MenuAvailability,
@@ -30,16 +31,12 @@ export class MenuStore {
   );
 
   initialize(restaurantId: string): void {
-    if (!restaurantId.trim()) {
-      this.error.set('A restaurantId is required to manage the menu.');
-      return;
-    }
-    this.restaurantId = restaurantId;
+    this.restaurantId = normalizeRestaurantId(restaurantId);
     this.subscription?.unsubscribe();
     this.loading.set(true);
     this.error.set(null);
     this.subscription = this.repository
-      .watchMenu(restaurantId)
+      .watchMenu(this.restaurantId)
       .pipe(takeUntilDestroyed(this.destroyRef))
       .subscribe({
         next: (items) => {

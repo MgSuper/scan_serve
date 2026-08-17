@@ -3,6 +3,7 @@ import { collection, collectionData, Firestore, query, where } from '@angular/fi
 import { Functions, httpsCallable } from '@angular/fire/functions';
 import { catchError, from, map, Observable, throwError } from 'rxjs';
 
+import { normalizeRestaurantId } from '../../../shared/restaurant-context';
 import {
   KITCHEN_ORDER_STATUSES,
   KitchenNextStatus,
@@ -40,11 +41,12 @@ export class KitchenRepositoryImpl extends KitchenRepository {
   private readonly injector = inject(Injector);
 
   watchActiveOrders(restaurantId: string): Observable<readonly KitchenOrder[]> {
+    const resolvedRestaurantId = normalizeRestaurantId(restaurantId);
     return runInInjectionContext(this.injector, () => {
       const orders = collection(this.firestore, 'orders');
       const restaurantOrders = query(
         orders,
-        where('restaurantId', '==', restaurantId),
+        where('restaurantId', '==', resolvedRestaurantId),
         where('status', 'in', KITCHEN_ORDER_STATUSES),
       );
 
@@ -68,6 +70,7 @@ export class KitchenRepositoryImpl extends KitchenRepository {
     currentStatus: KitchenOrderStatus,
     nextStatus: KitchenNextStatus,
   ): Observable<void> {
+    const resolvedRestaurantId = normalizeRestaurantId(restaurantId);
     const callable = runInInjectionContext(this.injector, () =>
       httpsCallable<UpdateOrderStatusRequest, ApiResponse<unknown>>(
         this.functions,
@@ -78,7 +81,7 @@ export class KitchenRepositoryImpl extends KitchenRepository {
       requestId: `${orderId}-${Date.now()}`,
       timestamp: new Date().toISOString(),
       payload: {
-        restaurantId,
+        restaurantId: resolvedRestaurantId,
         orderId,
         status: nextStatus,
       },

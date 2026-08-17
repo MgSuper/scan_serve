@@ -10,6 +10,7 @@ import {
 } from '@angular/fire/firestore';
 import { catchError, from, map, Observable, throwError } from 'rxjs';
 
+import { normalizeRestaurantId } from '../../../shared/restaurant-context';
 import {
   CreateMenuItemInput,
   MenuAvailability,
@@ -31,6 +32,8 @@ interface MenuItemDto {
   readonly status?: unknown;
   readonly isAvailable?: unknown;
   readonly archived?: unknown;
+  readonly createdAt?: unknown;
+  readonly updatedAt?: unknown;
 }
 
 @Injectable({ providedIn: 'root' })
@@ -39,12 +42,13 @@ export class MenuRepositoryImpl extends MenuRepository {
   private readonly injector = inject(Injector);
 
   watchMenu(restaurantId: string): Observable<readonly MenuItem[]> {
+    const resolvedRestaurantId = normalizeRestaurantId(restaurantId);
     return runInInjectionContext(this.injector, () => {
-      const menu = collection(this.firestore, `restaurants/${restaurantId}/menu`);
+      const menu = collection(this.firestore, `restaurants/${resolvedRestaurantId}/menu`);
       return collectionData(menu, { idField: 'id' }).pipe(
         map((documents) =>
           documents
-            .map((document) => toMenuItem(document as MenuItemDto))
+            .map((document) => toMenuItem(document as MenuItemDto, resolvedRestaurantId))
             .filter((item): item is MenuItem => item !== null && !item.archived)
             .sort((left, right) => left.name.localeCompare(right.name)),
         ),
@@ -56,10 +60,11 @@ export class MenuRepositoryImpl extends MenuRepository {
   }
 
   createMenuItem(restaurantId: string, input: CreateMenuItemInput): Observable<MenuItem> {
+    const resolvedRestaurantId = normalizeRestaurantId(restaurantId);
     return from(
       runInInjectionContext(this.injector, () =>
-        addDoc(collection(this.firestore, `restaurants/${restaurantId}/menu`), {
-          restaurantId,
+        addDoc(collection(this.firestore, `restaurants/${resolvedRestaurantId}/menu`), {
+          restaurantId: resolvedRestaurantId,
           name: input.name.trim(),
           description: input.description.trim(),
           category: input.category.trim(),
@@ -75,7 +80,7 @@ export class MenuRepositoryImpl extends MenuRepository {
     ).pipe(
       map((reference) => ({
         id: reference.id,
-        restaurantId,
+        restaurantId: resolvedRestaurantId,
         branchId: null,
         name: input.name.trim(),
         description: input.description.trim(),
@@ -83,6 +88,8 @@ export class MenuRepositoryImpl extends MenuRepository {
         price: input.price,
         availability: input.availability,
         archived: false,
+        createdAt: null,
+        updatedAt: null,
       })),
       catchError((error: unknown) =>
         throwError(() => new Error(this.readableError(error, 'Unable to create the menu item.'))),
@@ -95,9 +102,10 @@ export class MenuRepositoryImpl extends MenuRepository {
     itemId: string,
     input: UpdateMenuItemInput,
   ): Observable<void> {
+    const resolvedRestaurantId = normalizeRestaurantId(restaurantId);
     return from(
       runInInjectionContext(this.injector, () =>
-        updateDoc(doc(this.firestore, `restaurants/${restaurantId}/menu/${itemId}`), {
+        updateDoc(doc(this.firestore, `restaurants/${resolvedRestaurantId}/menu/${itemId}`), {
           name: input.name.trim(),
           description: input.description.trim(),
           category: input.category.trim(),
@@ -117,9 +125,10 @@ export class MenuRepositoryImpl extends MenuRepository {
   }
 
   archiveMenuItem(restaurantId: string, itemId: string): Observable<void> {
+    const resolvedRestaurantId = normalizeRestaurantId(restaurantId);
     return from(
       runInInjectionContext(this.injector, () =>
-        updateDoc(doc(this.firestore, `restaurants/${restaurantId}/menu/${itemId}`), {
+        updateDoc(doc(this.firestore, `restaurants/${resolvedRestaurantId}/menu/${itemId}`), {
           archived: true,
           availability: 'out_of_stock',
           status: 'out_of_stock',
@@ -140,9 +149,10 @@ export class MenuRepositoryImpl extends MenuRepository {
     itemId: string,
     availability: MenuAvailability,
   ): Observable<void> {
+    const resolvedRestaurantId = normalizeRestaurantId(restaurantId);
     return from(
       runInInjectionContext(this.injector, () =>
-        updateDoc(doc(this.firestore, `restaurants/${restaurantId}/menu/${itemId}`), {
+        updateDoc(doc(this.firestore, `restaurants/${resolvedRestaurantId}/menu/${itemId}`), {
           availability,
           status: availability,
           isAvailable: availability === 'in_stock',
@@ -171,9 +181,11 @@ export class MenuRepositoryImpl extends MenuRepository {
   }
 }
 
-function toMenuItem(dto: MenuItemDto): MenuItem | null {
+function toMenuItem(dto: MenuItemDto, fallbackRestaurantId: string): MenuItem | null {
+  const restaurantId =
+    typeof dto.restaurantId === 'string' ? dto.restaurantId : fallbackRestaurantId;
   if (
-    typeof dto.restaurantId !== 'string' ||
+    restaurantId !== fallbackRestaurantId ||
     typeof dto.name !== 'string' ||
     typeof dto.price !== 'number'
   ) {
@@ -185,7 +197,7 @@ function toMenuItem(dto: MenuItemDto): MenuItem | null {
 
   return {
     id: dto.id,
-    restaurantId: dto.restaurantId,
+    restaurantId,
     branchId: typeof dto.branchId === 'string' ? dto.branchId : null,
     name: dto.name,
     description: typeof dto.description === 'string' ? dto.description : '',
@@ -198,6 +210,8 @@ function toMenuItem(dto: MenuItemDto): MenuItem | null {
     price: dto.price,
     availability,
     archived: dto.archived === true,
+    createdAt: toDateOrNull(dto.createdAt),
+    updatedAt: toDateOrNull(dto.updatedAt),
   };
 }
 
@@ -210,6 +224,18 @@ function toAvailability(dto: MenuItemDto): MenuAvailability | null {
   }
   if (typeof dto.isAvailable === 'boolean') {
     return dto.isAvailable ? 'in_stock' : 'out_of_stock';
+  }
+  return null;
+}
+
+function toDateOrNull(value: unknown): Date | null {
+  if (value instanceof Date) return value;
+  if (typeof value === 'object' && value !== null && 'toDate' in value) {
+    const toDate = value.toDate;
+    if (typeof toDate === 'function') {
+      const date = toDate();
+      return date instanceof Date ? date : null;
+    }
   }
   return null;
 }

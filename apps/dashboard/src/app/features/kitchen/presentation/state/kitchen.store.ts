@@ -2,6 +2,7 @@ import { computed, DestroyRef, inject, Injectable, signal } from '@angular/core'
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { Subscription, take } from 'rxjs';
 
+import { normalizeRestaurantId } from '../../../../shared/restaurant-context';
 import { KitchenOrder, KitchenOrderStatus, NEXT_KITCHEN_STATUS } from '../../domain/kitchen-order';
 import { UpdateOrderStatusUseCase } from '../../domain/use-cases/update-order-status.use-case';
 import { WatchKitchenQueueUseCase } from '../../domain/use-cases/watch-kitchen-queue.use-case';
@@ -48,7 +49,7 @@ export class KitchenStore {
   });
 
   initialize(restaurantId: string): void {
-    this.restaurantId = restaurantId;
+    this.restaurantId = normalizeRestaurantId(restaurantId);
     this.queueSubscription?.unsubscribe();
     this.orders.set([]);
     this.selectedOrderId.set(null);
@@ -57,7 +58,7 @@ export class KitchenStore {
 
     try {
       this.queueSubscription = this.watchKitchenQueue
-        .execute(restaurantId)
+        .execute(this.restaurantId)
         .pipe(takeUntilDestroyed(this.destroyRef))
         .subscribe({
           next: (orders) => {

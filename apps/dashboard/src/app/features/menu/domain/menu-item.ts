@@ -13,6 +13,8 @@ export interface MenuItem {
   readonly price: number;
   readonly availability: MenuAvailability;
   readonly archived: boolean;
+  readonly createdAt?: Date | null;
+  readonly updatedAt?: Date | null;
 }
 
 export interface CreateMenuItemInput {

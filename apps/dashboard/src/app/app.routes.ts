@@ -1,10 +1,12 @@
 import { Routes } from '@angular/router';
 
+import { DEFAULT_RESTAURANT_ID } from './shared/restaurant-context';
+
 export const routes: Routes = [
   {
     path: '',
     pathMatch: 'full',
-    redirectTo: 'kitchen/scanserve-demo',
+    redirectTo: `kitchen/${DEFAULT_RESTAURANT_ID}`,
   },
   {
     path: 'kitchen/:restaurantId',
@@ -22,6 +24,6 @@ export const routes: Routes = [
   },
   {
     path: '**',
-    redirectTo: 'kitchen/scanserve-demo',
+    redirectTo: `kitchen/${DEFAULT_RESTAURANT_ID}`,
   },
 ];

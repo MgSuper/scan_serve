@@ -1,8 +1,8 @@
 <header class="app-header">
-  <a class="brand" routerLink="/kitchen/scanserve-demo">ScanServe Dashboard</a>
+  <a class="brand" [routerLink]="['/kitchen', defaultRestaurantId]">ScanServe Dashboard</a>
   <nav class="workspace-nav" aria-label="Dashboard sections">
-    <a routerLink="/kitchen/scanserve-demo">Kitchen</a>
-    <a routerLink="/menu/scanserve-demo">Menu</a>
+    <a [routerLink]="['/kitchen', defaultRestaurantId]">Kitchen</a>
+    <a [routerLink]="['/menu', defaultRestaurantId]">Menu</a>
   </nav>
 </header>
 
