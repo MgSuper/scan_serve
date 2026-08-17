@@ -1,6 +1,7 @@
 import { inject, Injectable, Injector, runInInjectionContext } from '@angular/core';
-import { collection, collectionData, Firestore, query, where } from '@angular/fire/firestore';
+import { Firestore } from '@angular/fire/firestore';
 import { Functions, httpsCallable } from '@angular/fire/functions';
+import { collection, onSnapshot, query, where } from 'firebase/firestore';
 import { catchError, from, map, Observable, of, startWith, throwError } from 'rxjs';
 
 import { normalizeRestaurantId } from '../../../shared/restaurant-context';
@@ -49,15 +50,31 @@ export class KitchenRepositoryImpl extends KitchenRepository {
         where('status', 'in', KITCHEN_ORDER_STATUSES),
       );
 
-      return collectionData(restaurantOrders, { idField: 'id' }).pipe(
+      return new Observable<KitchenOrderDto[]>((observer) => {
+        const unsubscribe = onSnapshot(
+          restaurantOrders,
+          (snapshot) => {
+            const documents = snapshot.docs.map(
+              (snapshotDocument) =>
+                ({ id: snapshotDocument.id, ...snapshotDocument.data() }) as KitchenOrderDto,
+            );
+            observer.next(documents);
+          },
+          (error) => observer.error(error),
+        );
+        return () => unsubscribe();
+      }).pipe(
         map((documents) =>
           documents
-            .map((document) => toKitchenOrder(document as KitchenOrderDto))
+            .map((document) => toKitchenOrder(document))
             .filter((order): order is KitchenOrder => order !== null)
             .sort((left, right) => left.createdAt.getTime() - right.createdAt.getTime()),
         ),
         startWith([] as readonly KitchenOrder[]),
-        catchError(() => of([] as readonly KitchenOrder[])),
+        catchError((error: unknown) => {
+          console.error('[Firestore Kitchen Stream Error]', error);
+          return of([] as readonly KitchenOrder[]);
+        }),
       );
     });
   }

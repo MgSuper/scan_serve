@@ -1,15 +1,14 @@
 import { inject, Injectable, Injector, runInInjectionContext } from '@angular/core';
 import {
   addDoc,
-  collection,
-  collectionData,
-  query,
+  collection as angularCollection,
   doc,
   Firestore,
   serverTimestamp,
   updateDoc,
 } from '@angular/fire/firestore';
-import { catchError, from, map, Observable, of, startWith, tap, throwError } from 'rxjs';
+import { collection, onSnapshot, query } from 'firebase/firestore';
+import { catchError, from, map, Observable, of, startWith, throwError } from 'rxjs';
 
 import { normalizeRestaurantId } from '../../../shared/restaurant-context';
 import {
@@ -44,21 +43,33 @@ export class MenuRepositoryImpl extends MenuRepository {
 
   watchMenu(restaurantId: string): Observable<readonly MenuItem[]> {
     const resolvedRestaurantId = normalizeRestaurantId(restaurantId);
-    console.log('resolvedRestaurantId', resolvedRestaurantId);
     return runInInjectionContext(this.injector, () => {
-      const menu = query(collection(this.firestore, `restaurants/${resolvedRestaurantId}/menu`));
-      return collectionData(menu, { idField: 'id' }).pipe(
-        // 1. Log raw documents straight from Firestore
-        tap((rawDocs) => console.log('🔥 1. [Raw Firestore Docs]:', rawDocs)),
+      const menuQuery = query(
+        collection(this.firestore, `restaurants/${resolvedRestaurantId}/menu`),
+      );
+      return new Observable<MenuItemDto[]>((observer) => {
+        const unsubscribe = onSnapshot(
+          menuQuery,
+          (snapshot) => {
+            const documents = snapshot.docs.map(
+              (snapshotDocument) =>
+                ({ id: snapshotDocument.id, ...snapshotDocument.data() }) as MenuItemDto,
+            );
+            observer.next(documents);
+          },
+          (error) => observer.error(error),
+        );
+        return () => unsubscribe();
+      }).pipe(
         map((documents) =>
           documents
-            .map((document) => toMenuItem(document as MenuItemDto, resolvedRestaurantId))
+            .map((document) => toMenuItem(document, resolvedRestaurantId))
             .filter((item): item is MenuItem => item !== null)
             .sort((left, right) => left.name.localeCompare(right.name)),
         ),
         startWith([] as readonly MenuItem[]),
-        catchError((error) => {
-          console.error('❌ 4. [Firestore Stream Error]:', error);
+        catchError((error: unknown) => {
+          console.error('[Firestore Menu Stream Error]', error);
           return of([] as readonly MenuItem[]);
         }),
       );
@@ -69,7 +80,7 @@ export class MenuRepositoryImpl extends MenuRepository {
     const resolvedRestaurantId = normalizeRestaurantId(restaurantId);
     return from(
       runInInjectionContext(this.injector, () =>
-        addDoc(collection(this.firestore, `restaurants/${resolvedRestaurantId}/menu`), {
+        addDoc(angularCollection(this.firestore, `restaurants/${resolvedRestaurantId}/menu`), {
           restaurantId: resolvedRestaurantId,
           name: input.name.trim(),
           description: input.description.trim(),
