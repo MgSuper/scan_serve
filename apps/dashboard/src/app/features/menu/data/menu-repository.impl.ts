@@ -9,7 +9,7 @@ import {
   serverTimestamp,
   updateDoc,
 } from '@angular/fire/firestore';
-import { catchError, from, map, Observable, of, startWith, throwError } from 'rxjs';
+import { catchError, from, map, Observable, of, startWith, tap, throwError } from 'rxjs';
 
 import { normalizeRestaurantId } from '../../../shared/restaurant-context';
 import {
@@ -44,9 +44,12 @@ export class MenuRepositoryImpl extends MenuRepository {
 
   watchMenu(restaurantId: string): Observable<readonly MenuItem[]> {
     const resolvedRestaurantId = normalizeRestaurantId(restaurantId);
+    console.log('resolvedRestaurantId', resolvedRestaurantId);
     return runInInjectionContext(this.injector, () => {
       const menu = query(collection(this.firestore, `restaurants/${resolvedRestaurantId}/menu`));
       return collectionData(menu, { idField: 'id' }).pipe(
+        // 1. Log raw documents straight from Firestore
+        tap((rawDocs) => console.log('🔥 1. [Raw Firestore Docs]:', rawDocs)),
         map((documents) =>
           documents
             .map((document) => toMenuItem(document as MenuItemDto, resolvedRestaurantId))
@@ -54,7 +57,10 @@ export class MenuRepositoryImpl extends MenuRepository {
             .sort((left, right) => left.name.localeCompare(right.name)),
         ),
         startWith([] as readonly MenuItem[]),
-        catchError(() => of([] as readonly MenuItem[])),
+        catchError((error) => {
+          console.error('❌ 4. [Firestore Stream Error]:', error);
+          return of([] as readonly MenuItem[]);
+        }),
       );
     });
   }
