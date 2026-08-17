@@ -1,7 +1,7 @@
 import { inject, Injectable, Injector, runInInjectionContext } from '@angular/core';
-import { Firestore } from '@angular/fire/firestore';
 import { Functions, httpsCallable } from '@angular/fire/functions';
-import { collection, onSnapshot, query, where } from 'firebase/firestore';
+import { getApp } from 'firebase/app';
+import { collection, getFirestore, onSnapshot, query, where } from 'firebase/firestore';
 import { catchError, from, map, Observable, of, startWith, throwError } from 'rxjs';
 
 import { normalizeRestaurantId } from '../../../shared/restaurant-context';
@@ -37,7 +37,7 @@ interface ApiResponse<T> {
 
 @Injectable({ providedIn: 'root' })
 export class KitchenRepositoryImpl extends KitchenRepository {
-  private readonly firestore = inject(Firestore);
+  private readonly firestore = getFirestore(getApp());
   private readonly functions = inject(Functions);
   private readonly injector = inject(Injector);
 

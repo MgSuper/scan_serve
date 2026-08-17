@@ -1,13 +1,15 @@
 import { inject, Injectable, Injector, runInInjectionContext } from '@angular/core';
+import { getApp } from 'firebase/app';
 import {
   addDoc,
-  collection as angularCollection,
+  collection,
   doc,
-  Firestore,
+  getFirestore,
+  onSnapshot,
+  query,
   serverTimestamp,
   updateDoc,
-} from '@angular/fire/firestore';
-import { collection, onSnapshot, query } from 'firebase/firestore';
+} from 'firebase/firestore';
 import { catchError, from, map, Observable, of, startWith, throwError } from 'rxjs';
 
 import { normalizeRestaurantId } from '../../../shared/restaurant-context';
@@ -38,7 +40,7 @@ interface MenuItemDto {
 
 @Injectable({ providedIn: 'root' })
 export class MenuRepositoryImpl extends MenuRepository {
-  private readonly firestore = inject(Firestore);
+  private readonly firestore = getFirestore(getApp());
   private readonly injector = inject(Injector);
 
   watchMenu(restaurantId: string): Observable<readonly MenuItem[]> {
@@ -80,7 +82,7 @@ export class MenuRepositoryImpl extends MenuRepository {
     const resolvedRestaurantId = normalizeRestaurantId(restaurantId);
     return from(
       runInInjectionContext(this.injector, () =>
-        addDoc(angularCollection(this.firestore, `restaurants/${resolvedRestaurantId}/menu`), {
+        addDoc(collection(this.firestore, `restaurants/${resolvedRestaurantId}/menu`), {
           restaurantId: resolvedRestaurantId,
           name: input.name.trim(),
           description: input.description.trim(),
