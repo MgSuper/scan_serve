@@ -31,12 +31,9 @@ export function toKitchenOrder(dto: KitchenOrderDto): KitchenOrder | null {
     return null;
   }
 
-  const submittedAt = toDate(dto.submittedAt);
-  const createdAt = toDate(dto.createdAt);
-  const updatedAt = toDate(dto.updatedAt);
-  if (!submittedAt || !createdAt || !updatedAt) {
-    return null;
-  }
+  const submittedAt = toDateOrDefault(dto.submittedAt);
+  const createdAt = toDateOrDefault(dto.createdAt);
+  const updatedAt = toDateOrDefault(dto.updatedAt);
 
   return {
     id: dto.id,
@@ -55,14 +52,15 @@ export function toKitchenOrder(dto: KitchenOrderDto): KitchenOrder | null {
   };
 }
 
-function toDate(value: unknown): Date | null {
+function toDateOrDefault(value: unknown): Date {
   if (value instanceof Timestamp) {
-    return value.toDate();
+    const date = value.toDate();
+    if (!Number.isNaN(date.getTime())) return date;
   }
   if (value instanceof Date && !Number.isNaN(value.getTime())) {
     return value;
   }
-  return null;
+  return new Date();
 }
 
 function toNumber(value: unknown): number {

@@ -1,7 +1,7 @@
 import { inject, Injectable, Injector, runInInjectionContext } from '@angular/core';
 import { collection, collectionData, Firestore, query, where } from '@angular/fire/firestore';
 import { Functions, httpsCallable } from '@angular/fire/functions';
-import { catchError, from, map, Observable, throwError } from 'rxjs';
+import { catchError, from, map, Observable, of, throwError } from 'rxjs';
 
 import { normalizeRestaurantId } from '../../../shared/restaurant-context';
 import {
@@ -57,9 +57,7 @@ export class KitchenRepositoryImpl extends KitchenRepository {
             .filter((order): order is KitchenOrder => order !== null)
             .sort((left, right) => left.createdAt.getTime() - right.createdAt.getTime()),
         ),
-        catchError((error: unknown) =>
-          throwError(() => new Error(this.readableFirestoreError(error))),
-        ),
+        catchError(() => of([])),
       );
     });
   }

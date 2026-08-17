@@ -8,7 +8,7 @@ import {
   serverTimestamp,
   updateDoc,
 } from '@angular/fire/firestore';
-import { catchError, from, map, Observable, throwError } from 'rxjs';
+import { catchError, from, map, Observable, of, throwError } from 'rxjs';
 
 import { normalizeRestaurantId } from '../../../shared/restaurant-context';
 import {
@@ -52,9 +52,7 @@ export class MenuRepositoryImpl extends MenuRepository {
             .filter((item): item is MenuItem => item !== null && !item.archived)
             .sort((left, right) => left.name.localeCompare(right.name)),
         ),
-        catchError((error: unknown) =>
-          throwError(() => new Error(this.readableError(error, 'Unable to load the menu.'))),
-        ),
+        catchError(() => of([])),
       );
     });
   }
@@ -210,8 +208,8 @@ function toMenuItem(dto: MenuItemDto, fallbackRestaurantId: string): MenuItem | 
     price: dto.price,
     availability,
     archived: dto.archived === true,
-    createdAt: toDateOrNull(dto.createdAt),
-    updatedAt: toDateOrNull(dto.updatedAt),
+    createdAt: toDateOrDefault(dto.createdAt),
+    updatedAt: toDateOrDefault(dto.updatedAt),
   };
 }
 
@@ -228,14 +226,14 @@ function toAvailability(dto: MenuItemDto): MenuAvailability | null {
   return null;
 }
 
-function toDateOrNull(value: unknown): Date | null {
-  if (value instanceof Date) return value;
+function toDateOrDefault(value: unknown): Date {
+  if (value instanceof Date && !Number.isNaN(value.getTime())) return value;
   if (typeof value === 'object' && value !== null && 'toDate' in value) {
     const toDate = value.toDate;
     if (typeof toDate === 'function') {
       const date = toDate();
-      return date instanceof Date ? date : null;
+      if (date instanceof Date && !Number.isNaN(date.getTime())) return date;
     }
   }
-  return null;
+  return new Date();
 }
