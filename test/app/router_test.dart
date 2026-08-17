@@ -6,6 +6,8 @@ import 'package:scan_serve/app/localization/locale_cubit.dart';
 import 'package:scan_serve/app/routes/router.dart';
 import 'package:scan_serve/app/theme/theme_cubit.dart';
 import 'package:scan_serve/core/di/service_locator.dart';
+import 'package:scan_serve/features/customer/data/demo_customer_repository.dart';
+import 'package:scan_serve/features/customer/domain/customer_repository.dart';
 import 'package:scan_serve/features/onboarding/data/onboarding_storage.dart';
 import 'package:scan_serve/l10n/generated/app_localizations.dart';
 
@@ -21,6 +23,9 @@ void main() {
   setUpAll(() {
     if (!sl.isRegistered<OnboardingStorage>()) {
       sl.registerLazySingleton<OnboardingStorage>(FakeOnboardingStorage.new);
+    }
+    if (!sl.isRegistered<CustomerRepository>()) {
+      sl.registerLazySingleton<CustomerRepository>(DemoCustomerRepository.new);
     }
   });
 
@@ -44,7 +49,7 @@ void main() {
     await tester.pumpWidget(buildTestable());
     await tester.pumpAndSettle();
 
-    expect(find.text('Home'), findsOneWidget);
+    expect(find.text('ScanServe'), findsOneWidget);
   });
 
   testWidgets('go to settings works', (tester) async {

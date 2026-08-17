@@ -35,6 +35,9 @@ dependencies:
   cupertino_icons: ^1.0.8
   # State Management
   flutter_bloc: ^9.1.1
+  firebase_core: ^4.13.0
+  cloud_firestore: ^6.8.0
+  cloud_functions: ^6.3.6
   # Routing
   go_router: ^17.2.2
   # Dependency Injection

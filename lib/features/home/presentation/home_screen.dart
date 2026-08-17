@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
+import 'package:go_router/go_router.dart';
+import 'package:scan_serve/app/routes/app_routes.dart';
 import 'package:scan_serve/core/di/service_locator.dart';
 import 'package:scan_serve/features/customer/domain/customer_repository.dart';
 import 'package:scan_serve/features/customer/domain/models.dart';
@@ -38,6 +40,7 @@ class _CustomerHomeView extends StatelessWidget {
             ]),
             actions: [
               IconButton(tooltip: 'Call waiter', onPressed: context.read<CustomerCubit>().callWaiter, icon: const Icon(Icons.room_service_outlined)),
+              IconButton(tooltip: 'Settings', onPressed: () => context.go(AppRoutes.settings), icon: const Icon(Icons.settings)),
             ],
           ),
           body: state.loading
