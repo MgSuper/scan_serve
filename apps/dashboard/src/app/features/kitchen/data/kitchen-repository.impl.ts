@@ -1,4 +1,4 @@
-import { inject, Injectable } from '@angular/core';
+import { inject, Injectable, Injector, runInInjectionContext } from '@angular/core';
 import { collection, collectionData, Firestore, query, where } from '@angular/fire/firestore';
 import { Functions, httpsCallable } from '@angular/fire/functions';
 import { catchError, from, map, Observable, throwError } from 'rxjs';
@@ -37,26 +37,29 @@ interface ApiResponse<T> {
 export class KitchenRepositoryImpl extends KitchenRepository {
   private readonly firestore = inject(Firestore);
   private readonly functions = inject(Functions);
+  private readonly injector = inject(Injector);
 
   watchActiveOrders(restaurantId: string): Observable<readonly KitchenOrder[]> {
-    const orders = collection(this.firestore, 'orders');
-    const restaurantOrders = query(
-      orders,
-      where('restaurantId', '==', restaurantId),
-      where('status', 'in', KITCHEN_ORDER_STATUSES),
-    );
+    return runInInjectionContext(this.injector, () => {
+      const orders = collection(this.firestore, 'orders');
+      const restaurantOrders = query(
+        orders,
+        where('restaurantId', '==', restaurantId),
+        where('status', 'in', KITCHEN_ORDER_STATUSES),
+      );
 
-    return collectionData(restaurantOrders, { idField: 'id' }).pipe(
-      map((documents) =>
-        documents
-          .map((document) => toKitchenOrder(document as KitchenOrderDto))
-          .filter((order): order is KitchenOrder => order !== null)
-          .sort((left, right) => left.createdAt.getTime() - right.createdAt.getTime()),
-      ),
-      catchError((error: unknown) =>
-        throwError(() => new Error(this.readableFirestoreError(error))),
-      ),
-    );
+      return collectionData(restaurantOrders, { idField: 'id' }).pipe(
+        map((documents) =>
+          documents
+            .map((document) => toKitchenOrder(document as KitchenOrderDto))
+            .filter((order): order is KitchenOrder => order !== null)
+            .sort((left, right) => left.createdAt.getTime() - right.createdAt.getTime()),
+        ),
+        catchError((error: unknown) =>
+          throwError(() => new Error(this.readableFirestoreError(error))),
+        ),
+      );
+    });
   }
 
   updateOrderStatus(
@@ -65,9 +68,11 @@ export class KitchenRepositoryImpl extends KitchenRepository {
     currentStatus: KitchenOrderStatus,
     nextStatus: KitchenNextStatus,
   ): Observable<void> {
-    const callable = httpsCallable<UpdateOrderStatusRequest, ApiResponse<unknown>>(
-      this.functions,
-      'updateOrderStatus',
+    const callable = runInInjectionContext(this.injector, () =>
+      httpsCallable<UpdateOrderStatusRequest, ApiResponse<unknown>>(
+        this.functions,
+        'updateOrderStatus',
+      ),
     );
     const request: UpdateOrderStatusRequest = {
       requestId: `${orderId}-${Date.now()}`,

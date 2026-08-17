@@ -18,7 +18,7 @@ Future<void> bootstrap(Environment env) async {
 
   final config = AppConfig.from(env);
 
-  await Firebase.initializeApp(options: DefaultFirebaseOptions.currentPlatform);
+  await _initializeFirebase();
   await setupLocator(config);
 
   await sl<LocaleCubit>().init();
@@ -29,4 +29,12 @@ Future<void> bootstrap(Environment env) async {
 
   runApp(App(showOnboardingFirst: !onboardingCompleted));
   FlutterNativeSplash.remove();
+}
+
+Future<void> _initializeFirebase() async {
+  if (Firebase.apps.isEmpty) {
+    await Firebase.initializeApp(
+      options: DefaultFirebaseOptions.currentPlatform,
+    );
+  }
 }
