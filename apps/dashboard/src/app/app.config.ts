@@ -1,6 +1,6 @@
 import { ApplicationConfig, provideBrowserGlobalErrorListeners } from '@angular/core';
 import { provideRouter } from '@angular/router';
-import { getApp, initializeApp, provideFirebaseApp } from '@angular/fire/app';
+import { initializeApp, provideFirebaseApp } from '@angular/fire/app';
 import { getFirestore, provideFirestore } from '@angular/fire/firestore';
 import { getFunctions, provideFunctions } from '@angular/fire/functions';
 
@@ -18,8 +18,8 @@ export const appConfig: ApplicationConfig = {
     provideBrowserGlobalErrorListeners(),
     provideRouter(routes),
     provideFirebaseApp(() => initializeApp(environment.firebase)),
-    provideFirestore(() => getFirestore(getApp())),
-    provideFunctions(() => getFunctions(getApp())),
+    provideFirestore(() => getFirestore()),
+    provideFunctions(() => getFunctions()),
     { provide: KitchenRepository, useClass: KitchenRepositoryImpl },
     { provide: MenuRepository, useClass: MenuRepositoryImpl },
     { provide: WatchKitchenQueueUseCase, useClass: WatchKitchenQueueUseCase },

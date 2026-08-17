@@ -1,15 +1,14 @@
 import { inject, Injectable, Injector, runInInjectionContext } from '@angular/core';
-import { getApp } from 'firebase/app';
 import {
   addDoc,
   collection,
   doc,
-  getFirestore,
+  Firestore,
   onSnapshot,
   query,
   serverTimestamp,
   updateDoc,
-} from 'firebase/firestore';
+} from '@angular/fire/firestore';
 import { catchError, from, map, Observable, of, startWith, throwError } from 'rxjs';
 
 import { normalizeRestaurantId } from '../../../shared/restaurant-context';
@@ -40,14 +39,18 @@ interface MenuItemDto {
 
 @Injectable({ providedIn: 'root' })
 export class MenuRepositoryImpl extends MenuRepository {
+  private readonly firestore = inject(Firestore);
   private readonly injector = inject(Injector);
 
   watchMenu(restaurantId: string): Observable<readonly MenuItem[]> {
     const resolvedRestaurantId = normalizeRestaurantId(restaurantId);
+
     return runInInjectionContext(this.injector, () => {
       return new Observable<MenuItemDto[]>((observer) => {
-        const firestore = getFirestore(getApp());
-        const menuQuery = query(collection(firestore, `restaurants/${resolvedRestaurantId}/menu`));
+        const menuQuery = query(
+          collection(this.firestore, `restaurants/${resolvedRestaurantId}/menu`),
+        );
+
         const unsubscribe = onSnapshot(
           menuQuery,
           (snapshot) => {
@@ -59,6 +62,7 @@ export class MenuRepositoryImpl extends MenuRepository {
           },
           (error) => observer.error(error),
         );
+
         return () => unsubscribe();
       }).pipe(
         map((documents) =>
@@ -80,7 +84,7 @@ export class MenuRepositoryImpl extends MenuRepository {
     const resolvedRestaurantId = normalizeRestaurantId(restaurantId);
     return from(
       runInInjectionContext(this.injector, () =>
-        addDoc(collection(this.getNativeFirestore(), `restaurants/${resolvedRestaurantId}/menu`), {
+        addDoc(collection(this.firestore, `restaurants/${resolvedRestaurantId}/menu`), {
           restaurantId: resolvedRestaurantId,
           name: input.name.trim(),
           description: input.description.trim(),
@@ -123,7 +127,7 @@ export class MenuRepositoryImpl extends MenuRepository {
     return from(
       runInInjectionContext(this.injector, () =>
         updateDoc(
-          doc(this.getNativeFirestore(), `restaurants/${resolvedRestaurantId}/menu/${itemId}`),
+          doc(this.firestore, `restaurants/${resolvedRestaurantId}/menu/${itemId}`),
           {
             name: input.name.trim(),
             description: input.description.trim(),
@@ -149,7 +153,7 @@ export class MenuRepositoryImpl extends MenuRepository {
     return from(
       runInInjectionContext(this.injector, () =>
         updateDoc(
-          doc(this.getNativeFirestore(), `restaurants/${resolvedRestaurantId}/menu/${itemId}`),
+          doc(this.firestore, `restaurants/${resolvedRestaurantId}/menu/${itemId}`),
           {
             archived: true,
             availability: 'out_of_stock',
@@ -176,7 +180,7 @@ export class MenuRepositoryImpl extends MenuRepository {
     return from(
       runInInjectionContext(this.injector, () =>
         updateDoc(
-          doc(this.getNativeFirestore(), `restaurants/${resolvedRestaurantId}/menu/${itemId}`),
+          doc(this.firestore, `restaurants/${resolvedRestaurantId}/menu/${itemId}`),
           {
             availability,
             status: availability,
@@ -195,10 +199,6 @@ export class MenuRepositoryImpl extends MenuRepository {
     );
   }
 
-  private getNativeFirestore() {
-    return getFirestore(getApp());
-  }
-
   private readableError(error: unknown, fallback: string): string {
     if (this.isFirebaseError(error) && error.code === 'permission-denied') {
       return 'You do not have permission to manage this menu.';
@@ -212,13 +212,14 @@ export class MenuRepositoryImpl extends MenuRepository {
 }
 
 function toMenuItem(dto: MenuItemDto, fallbackRestaurantId: string): MenuItem | null {
+  // Gracefully fallback to the parent path restaurantId if missing or mismatched
   const restaurantId =
-    typeof dto.restaurantId === 'string' ? dto.restaurantId : fallbackRestaurantId;
-  if (
-    restaurantId !== fallbackRestaurantId ||
-    typeof dto.name !== 'string' ||
-    typeof dto.price !== 'number'
-  ) {
+    typeof dto.restaurantId === 'string' && dto.restaurantId.trim().length > 0
+      ? dto.restaurantId
+      : fallbackRestaurantId;
+
+  // Basic validation for mandatory UI fields
+  if (typeof dto.name !== 'string' || typeof dto.price !== 'number') {
     return null;
   }
 
@@ -231,9 +232,9 @@ function toMenuItem(dto: MenuItemDto, fallbackRestaurantId: string): MenuItem | 
     name: dto.name,
     description: typeof dto.description === 'string' ? dto.description : '',
     category:
-      typeof dto.category === 'string'
+      typeof dto.category === 'string' && dto.category.trim().length > 0
         ? dto.category
-        : typeof dto.categoryId === 'string'
+        : typeof dto.categoryId === 'string' && dto.categoryId.trim().length > 0
           ? dto.categoryId
           : 'Uncategorized',
     price: dto.price,
@@ -258,13 +259,33 @@ function toAvailability(dto: MenuItemDto): MenuAvailability {
 }
 
 function toDateOrDefault(value: unknown): Date {
-  if (value instanceof Date && !Number.isNaN(value.getTime())) return value;
-  if (typeof value === 'object' && value !== null && 'toDate' in value) {
-    const toDate = value.toDate;
-    if (typeof toDate === 'function') {
-      const date = toDate();
-      if (date instanceof Date && !Number.isNaN(date.getTime())) return date;
+  if (value instanceof Date && !Number.isNaN(value.getTime())) {
+    return value;
+  }
+
+  if (typeof value === 'number' && !Number.isNaN(value)) {
+    return new Date(value);
+  }
+
+  if (typeof value === 'string') {
+    const parsed = new Date(value);
+    if (!Number.isNaN(parsed.getTime())) return parsed;
+  }
+
+  if (typeof value === 'object' && value !== null) {
+    const candidate = value as Record<string, unknown>;
+    if (typeof candidate['toDate'] === 'function') {
+      try {
+        const date = (candidate['toDate'] as () => unknown)();
+        if (date instanceof Date && !Number.isNaN(date.getTime())) return date;
+      } catch {
+        // Fallback if toMillis or internal property is missing
+      }
+    }
+    if (typeof candidate['seconds'] === 'number') {
+      return new Date(candidate['seconds'] * 1000);
     }
   }
+
   return new Date();
 }

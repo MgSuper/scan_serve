@@ -1,7 +1,12 @@
 import { inject, Injectable, Injector, runInInjectionContext } from '@angular/core';
+import {
+  collection,
+  Firestore,
+  onSnapshot,
+  query,
+  where,
+} from '@angular/fire/firestore';
 import { Functions, httpsCallable } from '@angular/fire/functions';
-import { getApp } from 'firebase/app';
-import { collection, getFirestore, onSnapshot, query, where } from 'firebase/firestore';
 import { catchError, from, map, Observable, of, startWith, throwError } from 'rxjs';
 
 import { normalizeRestaurantId } from '../../../shared/restaurant-context';
@@ -37,19 +42,21 @@ interface ApiResponse<T> {
 
 @Injectable({ providedIn: 'root' })
 export class KitchenRepositoryImpl extends KitchenRepository {
+  private readonly firestore = inject(Firestore);
   private readonly functions = inject(Functions);
   private readonly injector = inject(Injector);
 
   watchActiveOrders(restaurantId: string): Observable<readonly KitchenOrder[]> {
     const resolvedRestaurantId = normalizeRestaurantId(restaurantId);
+
     return runInInjectionContext(this.injector, () => {
       return new Observable<KitchenOrderDto[]>((observer) => {
-        const firestore = getFirestore(getApp());
         const restaurantOrders = query(
-          collection(firestore, 'orders'),
+          collection(this.firestore, 'orders'),
           where('restaurantId', '==', resolvedRestaurantId),
           where('status', 'in', KITCHEN_ORDER_STATUSES),
         );
+
         const unsubscribe = onSnapshot(
           restaurantOrders,
           (snapshot) => {
@@ -61,6 +68,7 @@ export class KitchenRepositoryImpl extends KitchenRepository {
           },
           (error) => observer.error(error),
         );
+
         return () => unsubscribe();
       }).pipe(
         map((documents) =>
@@ -85,12 +93,14 @@ export class KitchenRepositoryImpl extends KitchenRepository {
     nextStatus: KitchenNextStatus,
   ): Observable<void> {
     const resolvedRestaurantId = normalizeRestaurantId(restaurantId);
+
     const callable = runInInjectionContext(this.injector, () =>
       httpsCallable<UpdateOrderStatusRequest, ApiResponse<unknown>>(
         this.functions,
         'updateOrderStatus',
       ),
     );
+
     const request: UpdateOrderStatusRequest = {
       requestId: `${orderId}-${Date.now()}`,
       timestamp: new Date().toISOString(),

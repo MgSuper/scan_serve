@@ -1,11 +1,15 @@
 rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
-
-    // LOCAL DEV MODE: Allow full read/write access during development
+    
+    // Allow access to restaurant subcollections (menu, etc.)
     match /restaurants/{restaurantId}/{document=**} {
       allow read, write: if true;
     }
 
+    // Allow access to kitchen orders
+    match /orders/{orderId} {
+      allow read, write: if true;
+    }
   }
 }
