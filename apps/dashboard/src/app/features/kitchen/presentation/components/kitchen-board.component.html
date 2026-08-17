@@ -1,0 +1,131 @@
+<section class="kitchen-board" aria-labelledby="kitchen-title">
+  <header class="kitchen-header">
+    <div>
+      <p class="eyebrow">Operations</p>
+      <h1 id="kitchen-title">Kitchen queue</h1>
+      <p class="subtitle">Monitor active orders and move them through preparation.</p>
+    </div>
+
+    <div class="filters" aria-label="Order filters">
+      @for (filter of filters; track filter) {
+        <button
+          type="button"
+          class="filter-button"
+          [class.active]="store.activeFilter() === filter"
+          [attr.aria-pressed]="store.activeFilter() === filter"
+          (click)="setFilter(filter)"
+        >
+          {{ filter === 'ALL' ? 'All active' : filter }}
+        </button>
+      }
+    </div>
+  </header>
+
+  @if (store.error(); as error) {
+    <div class="error-banner" role="alert">
+      <span>{{ error }}</span>
+      <button type="button" class="text-button" (click)="store.retry()">Retry</button>
+    </div>
+  }
+
+  @if (store.loading()) {
+    <div class="loading" aria-live="polite">Loading kitchen orders…</div>
+  } @else {
+    <div class="board-layout">
+      <div class="kanban-grid">
+        @for (column of store.columns(); track column.status) {
+          <section class="kanban-column" [attr.aria-labelledby]="column.status + '-heading'">
+            <header class="column-header">
+              <h2 [id]="column.status + '-heading'">{{ column.status }}</h2>
+              <span class="count">{{ column.orders.length }}</span>
+            </header>
+
+            <div class="order-list">
+              @for (order of column.orders; track order.id) {
+                <article
+                  class="order-card"
+                  [class.selected]="store.selectedOrderId() === order.id"
+                  tabindex="0"
+                  (click)="selectOrder(order.id)"
+                  (keydown.enter)="selectOrder(order.id)"
+                >
+                  <div class="order-card-header">
+                    <strong>#{{ order.id.slice(0, 8) }}</strong>
+                    <span class="table-label">Table {{ order.tableId }}</span>
+                  </div>
+                  <p class="order-total">{{ formatCurrency(order.total) }}</p>
+                  <p class="order-quantity">{{ order.totalQuantity }} item(s)</p>
+                  @if (order.customerNote) {
+                    <p class="customer-note">“{{ order.customerNote }}”</p>
+                  }
+                  <button
+                    type="button"
+                    class="action-button"
+                    [disabled]="store.isUpdating(order.id)"
+                    (click)="$event.stopPropagation(); advanceOrder(order)"
+                  >
+                    @if (store.isUpdating(order.id)) {
+                      Updating…
+                    } @else {
+                      {{ actionLabel(order.status) }}
+                    }
+                  </button>
+                </article>
+              } @empty {
+                <p class="empty-column">No active orders.</p>
+              }
+            </div>
+          </section>
+        }
+      </div>
+
+      @if (store.selectedOrder(); as selectedOrder) {
+        <aside class="order-detail" aria-label="Selected order details">
+          <div class="detail-header">
+            <div>
+              <p class="eyebrow">Selected order</p>
+              <h2>#{{ selectedOrder.id.slice(0, 8) }}</h2>
+            </div>
+            <button
+              type="button"
+              class="icon-button"
+              aria-label="Close order details"
+              (click)="clearSelection()"
+            >
+              ×
+            </button>
+          </div>
+          <dl>
+            <div>
+              <dt>Status</dt>
+              <dd>{{ selectedOrder.status }}</dd>
+            </div>
+            <div>
+              <dt>Table</dt>
+              <dd>{{ selectedOrder.tableId }}</dd>
+            </div>
+            <div>
+              <dt>Items</dt>
+              <dd>{{ selectedOrder.totalQuantity }}</dd>
+            </div>
+            <div>
+              <dt>Total</dt>
+              <dd>{{ formatCurrency(selectedOrder.total) }}</dd>
+            </div>
+          </dl>
+          @if (selectedOrder.customerNote) {
+            <p class="detail-note">{{ selectedOrder.customerNote }}</p>
+          }
+          <button
+            type="button"
+            class="action-button full-width"
+            [disabled]="store.isUpdating(selectedOrder.id)"
+            (click)="advanceOrder(selectedOrder)"
+          >
+            {{ actionLabel(selectedOrder.status) }}
+          </button>
+        </aside>
+      }
+    </div>
+  }
+</section>

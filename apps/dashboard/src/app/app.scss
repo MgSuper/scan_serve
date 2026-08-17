@@ -1,0 +1,30 @@
+:host {
+  display: block;
+  min-height: 100vh;
+}
+
+.app-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  border-bottom: 1px solid #e2e8f0;
+  padding: 1rem clamp(1rem, 4vw, 4rem);
+  background: #ffffff;
+}
+
+.brand {
+  color: #0f172a;
+  font-weight: 800;
+  text-decoration: none;
+}
+
+.workspace-label {
+  color: #64748b;
+  font-size: 0.85rem;
+}
+
+.app-content {
+  min-height: calc(100vh - 4.2rem);
+  background: #f1f5f9;
+}
