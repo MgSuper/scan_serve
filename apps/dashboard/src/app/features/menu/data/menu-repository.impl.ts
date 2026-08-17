@@ -2,13 +2,13 @@ import { inject, Injectable, Injector, runInInjectionContext } from '@angular/co
 import {
   addDoc,
   collection,
-  collectionData,
+  collectionSnapshots,
   doc,
   Firestore,
   serverTimestamp,
   updateDoc,
 } from '@angular/fire/firestore';
-import { catchError, from, map, Observable, of, throwError } from 'rxjs';
+import { catchError, from, map, Observable, retry, throwError } from 'rxjs';
 
 import { normalizeRestaurantId } from '../../../shared/restaurant-context';
 import {
@@ -45,14 +45,19 @@ export class MenuRepositoryImpl extends MenuRepository {
     const resolvedRestaurantId = normalizeRestaurantId(restaurantId);
     return runInInjectionContext(this.injector, () => {
       const menu = collection(this.firestore, `restaurants/${resolvedRestaurantId}/menu`);
-      return collectionData(menu, { idField: 'id' }).pipe(
-        map((documents) =>
-          documents
-            .map((document) => toMenuItem(document as MenuItemDto, resolvedRestaurantId))
-            .filter((item): item is MenuItem => item !== null && !item.archived)
+      return collectionSnapshots(menu).pipe(
+        map((snapshots) =>
+          snapshots
+            .map((snapshot) =>
+              toMenuItem(
+                { id: snapshot.id, ...snapshot.data() } as MenuItemDto,
+                resolvedRestaurantId,
+              ),
+            )
+            .filter((item): item is MenuItem => item !== null)
             .sort((left, right) => left.name.localeCompare(right.name)),
         ),
-        catchError(() => of([])),
+        retry({ delay: 1000 }),
       );
     });
   }
@@ -191,7 +196,6 @@ function toMenuItem(dto: MenuItemDto, fallbackRestaurantId: string): MenuItem | 
   }
 
   const availability = toAvailability(dto);
-  if (!availability) return null;
 
   return {
     id: dto.id,
@@ -213,7 +217,7 @@ function toMenuItem(dto: MenuItemDto, fallbackRestaurantId: string): MenuItem | 
   };
 }
 
-function toAvailability(dto: MenuItemDto): MenuAvailability | null {
+function toAvailability(dto: MenuItemDto): MenuAvailability {
   if (dto.availability === 'in_stock' || dto.availability === 'out_of_stock') {
     return dto.availability;
   }
@@ -223,7 +227,7 @@ function toAvailability(dto: MenuItemDto): MenuAvailability | null {
   if (typeof dto.isAvailable === 'boolean') {
     return dto.isAvailable ? 'in_stock' : 'out_of_stock';
   }
-  return null;
+  return 'in_stock';
 }
 
 function toDateOrDefault(value: unknown): Date {

@@ -24,8 +24,10 @@ export class MenuStore {
   readonly saving = signal(false);
   readonly savingIds = signal<ReadonlySet<string>>(new Set<string>());
 
+  readonly activeItems = computed(() => this.items().filter((item) => !item.archived));
+
   readonly categories = computed(() =>
-    [...new Set(this.items().map((item) => item.category))].sort((left, right) =>
+    [...new Set(this.activeItems().map((item) => item.category))].sort((left, right) =>
       left.localeCompare(right),
     ),
   );

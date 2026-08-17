@@ -63,7 +63,7 @@
     <div class="loading" aria-live="polite">Loading menu…</div>
   } @else {
     <div class="summary-row">
-      <span>{{ store.items().length }} active item(s)</span>
+      <span>{{ store.activeItems().length }} active item(s)</span>
       <span
         >{{ store.categories().length }} categor{{
           store.categories().length === 1 ? 'y' : 'ies'
@@ -72,7 +72,7 @@
     </div>
 
     <div class="menu-grid">
-      @for (item of store.items(); track item.id) {
+      @for (item of store.activeItems(); track item.id) {
         <article class="menu-card">
           <div class="card-header">
             <div>
