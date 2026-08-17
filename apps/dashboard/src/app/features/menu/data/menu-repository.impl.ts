@@ -40,16 +40,14 @@ interface MenuItemDto {
 
 @Injectable({ providedIn: 'root' })
 export class MenuRepositoryImpl extends MenuRepository {
-  private readonly firestore = getFirestore(getApp());
   private readonly injector = inject(Injector);
 
   watchMenu(restaurantId: string): Observable<readonly MenuItem[]> {
     const resolvedRestaurantId = normalizeRestaurantId(restaurantId);
     return runInInjectionContext(this.injector, () => {
-      const menuQuery = query(
-        collection(this.firestore, `restaurants/${resolvedRestaurantId}/menu`),
-      );
       return new Observable<MenuItemDto[]>((observer) => {
+        const firestore = getFirestore(getApp());
+        const menuQuery = query(collection(firestore, `restaurants/${resolvedRestaurantId}/menu`));
         const unsubscribe = onSnapshot(
           menuQuery,
           (snapshot) => {
@@ -82,7 +80,7 @@ export class MenuRepositoryImpl extends MenuRepository {
     const resolvedRestaurantId = normalizeRestaurantId(restaurantId);
     return from(
       runInInjectionContext(this.injector, () =>
-        addDoc(collection(this.firestore, `restaurants/${resolvedRestaurantId}/menu`), {
+        addDoc(collection(this.getNativeFirestore(), `restaurants/${resolvedRestaurantId}/menu`), {
           restaurantId: resolvedRestaurantId,
           name: input.name.trim(),
           description: input.description.trim(),
@@ -124,16 +122,19 @@ export class MenuRepositoryImpl extends MenuRepository {
     const resolvedRestaurantId = normalizeRestaurantId(restaurantId);
     return from(
       runInInjectionContext(this.injector, () =>
-        updateDoc(doc(this.firestore, `restaurants/${resolvedRestaurantId}/menu/${itemId}`), {
-          name: input.name.trim(),
-          description: input.description.trim(),
-          category: input.category.trim(),
-          price: input.price,
-          availability: input.availability,
-          status: input.availability,
-          isAvailable: input.availability === 'in_stock',
-          updatedAt: serverTimestamp(),
-        }),
+        updateDoc(
+          doc(this.getNativeFirestore(), `restaurants/${resolvedRestaurantId}/menu/${itemId}`),
+          {
+            name: input.name.trim(),
+            description: input.description.trim(),
+            category: input.category.trim(),
+            price: input.price,
+            availability: input.availability,
+            status: input.availability,
+            isAvailable: input.availability === 'in_stock',
+            updatedAt: serverTimestamp(),
+          },
+        ),
       ),
     ).pipe(
       map(() => undefined),
@@ -147,13 +148,16 @@ export class MenuRepositoryImpl extends MenuRepository {
     const resolvedRestaurantId = normalizeRestaurantId(restaurantId);
     return from(
       runInInjectionContext(this.injector, () =>
-        updateDoc(doc(this.firestore, `restaurants/${resolvedRestaurantId}/menu/${itemId}`), {
-          archived: true,
-          availability: 'out_of_stock',
-          status: 'out_of_stock',
-          isAvailable: false,
-          updatedAt: serverTimestamp(),
-        }),
+        updateDoc(
+          doc(this.getNativeFirestore(), `restaurants/${resolvedRestaurantId}/menu/${itemId}`),
+          {
+            archived: true,
+            availability: 'out_of_stock',
+            status: 'out_of_stock',
+            isAvailable: false,
+            updatedAt: serverTimestamp(),
+          },
+        ),
       ),
     ).pipe(
       map(() => undefined),
@@ -171,12 +175,15 @@ export class MenuRepositoryImpl extends MenuRepository {
     const resolvedRestaurantId = normalizeRestaurantId(restaurantId);
     return from(
       runInInjectionContext(this.injector, () =>
-        updateDoc(doc(this.firestore, `restaurants/${resolvedRestaurantId}/menu/${itemId}`), {
-          availability,
-          status: availability,
-          isAvailable: availability === 'in_stock',
-          updatedAt: serverTimestamp(),
-        }),
+        updateDoc(
+          doc(this.getNativeFirestore(), `restaurants/${resolvedRestaurantId}/menu/${itemId}`),
+          {
+            availability,
+            status: availability,
+            isAvailable: availability === 'in_stock',
+            updatedAt: serverTimestamp(),
+          },
+        ),
       ),
     ).pipe(
       map(() => undefined),
@@ -186,6 +193,10 @@ export class MenuRepositoryImpl extends MenuRepository {
         ),
       ),
     );
+  }
+
+  private getNativeFirestore() {
+    return getFirestore(getApp());
   }
 
   private readableError(error: unknown, fallback: string): string {

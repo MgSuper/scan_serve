@@ -37,20 +37,19 @@ interface ApiResponse<T> {
 
 @Injectable({ providedIn: 'root' })
 export class KitchenRepositoryImpl extends KitchenRepository {
-  private readonly firestore = getFirestore(getApp());
   private readonly functions = inject(Functions);
   private readonly injector = inject(Injector);
 
   watchActiveOrders(restaurantId: string): Observable<readonly KitchenOrder[]> {
     const resolvedRestaurantId = normalizeRestaurantId(restaurantId);
     return runInInjectionContext(this.injector, () => {
-      const restaurantOrders = query(
-        collection(this.firestore, 'orders'),
-        where('restaurantId', '==', resolvedRestaurantId),
-        where('status', 'in', KITCHEN_ORDER_STATUSES),
-      );
-
       return new Observable<KitchenOrderDto[]>((observer) => {
+        const firestore = getFirestore(getApp());
+        const restaurantOrders = query(
+          collection(firestore, 'orders'),
+          where('restaurantId', '==', resolvedRestaurantId),
+          where('status', 'in', KITCHEN_ORDER_STATUSES),
+        );
         const unsubscribe = onSnapshot(
           restaurantOrders,
           (snapshot) => {
