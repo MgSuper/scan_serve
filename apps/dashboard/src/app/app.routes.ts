@@ -14,6 +14,13 @@ export const routes: Routes = [
       ),
   },
   {
+    path: 'menu/:restaurantId',
+    loadComponent: () =>
+      import('./features/menu/presentation/components/menu-management.component').then(
+        ({ MenuManagementComponent }) => MenuManagementComponent,
+      ),
+  },
+  {
     path: '**',
     redirectTo: 'kitchen/scanserve-demo',
   },

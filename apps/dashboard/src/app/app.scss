@@ -19,9 +19,20 @@
   text-decoration: none;
 }
 
-.workspace-label {
-  color: #64748b;
+.workspace-nav {
+  display: flex;
+  gap: 1rem;
+}
+
+.workspace-nav a {
+  color: #475569;
   font-size: 0.85rem;
+  font-weight: 700;
+  text-decoration: none;
+}
+
+.workspace-nav a:hover {
+  color: #0f766e;
 }
 
 .app-content {

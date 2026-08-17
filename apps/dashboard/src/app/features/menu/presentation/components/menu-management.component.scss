@@ -1,0 +1,272 @@
+:host {
+  display: block;
+}
+
+.menu-management {
+  max-width: 1440px;
+  margin: 0 auto;
+  padding: 2.5rem clamp(1rem, 4vw, 4rem);
+}
+
+.page-header,
+.editor-header,
+.card-header,
+.summary-row,
+.card-actions,
+.editor-actions {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+}
+
+.page-header {
+  align-items: flex-end;
+  margin-bottom: 2rem;
+}
+
+.eyebrow,
+.category {
+  margin: 0 0 0.35rem;
+  color: #64748b;
+  font-size: 0.75rem;
+  font-weight: 700;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+}
+
+h1,
+h2,
+p {
+  margin-top: 0;
+}
+
+h1 {
+  margin-bottom: 0.5rem;
+  color: #0f172a;
+  font-size: clamp(2rem, 4vw, 3.25rem);
+  letter-spacing: -0.04em;
+}
+
+h2 {
+  margin-bottom: 0;
+  color: #1e293b;
+  font-size: 1.1rem;
+}
+
+.subtitle,
+.description {
+  margin-bottom: 0;
+  color: #64748b;
+}
+
+.primary-button,
+.secondary-button,
+.danger-button {
+  cursor: pointer;
+  border: 0;
+  border-radius: 0.6rem;
+  padding: 0.65rem 0.9rem;
+  font: inherit;
+  font-weight: 700;
+}
+
+.primary-button {
+  background: #0f766e;
+  color: #fff;
+}
+
+.primary-button:hover:not(:disabled) {
+  background: #115e59;
+}
+
+.secondary-button {
+  border: 1px solid #cbd5e1;
+  background: #fff;
+  color: #334155;
+}
+
+.danger-button {
+  background: #fef2f2;
+  color: #b91c1c;
+}
+
+.primary-button:disabled,
+.secondary-button:disabled,
+.danger-button:disabled {
+  cursor: wait;
+  opacity: 0.5;
+}
+
+.error-banner {
+  margin-bottom: 1.5rem;
+  border: 1px solid #fecaca;
+  border-radius: 0.75rem;
+  padding: 0.9rem 1rem;
+  background: #fef2f2;
+  color: #991b1b;
+}
+
+.editor {
+  margin-bottom: 2rem;
+  border: 1px solid #cbd5e1;
+  border-radius: 1rem;
+  padding: 1.25rem;
+  background: #fff;
+  box-shadow: 0 8px 24px rgb(15 23 42 / 6%);
+}
+
+.editor-header {
+  align-items: flex-start;
+  margin-bottom: 1.5rem;
+}
+
+.form-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 1rem;
+}
+
+label {
+  display: grid;
+  gap: 0.4rem;
+  color: #334155;
+  font-size: 0.85rem;
+  font-weight: 700;
+}
+
+input,
+select,
+textarea {
+  width: 100%;
+  border: 1px solid #cbd5e1;
+  border-radius: 0.55rem;
+  padding: 0.7rem 0.75rem;
+  background: #fff;
+  color: #0f172a;
+  font: inherit;
+  font-weight: 400;
+}
+
+textarea {
+  resize: vertical;
+}
+
+input:focus,
+select:focus,
+textarea:focus {
+  outline: 2px solid #99f6e4;
+  outline-offset: 1px;
+  border-color: #0f766e;
+}
+
+.wide-field {
+  grid-column: 1 / -1;
+}
+
+.editor-actions {
+  justify-content: flex-end;
+  margin-top: 1.25rem;
+}
+
+.summary-row {
+  margin-bottom: 1rem;
+  color: #64748b;
+  font-size: 0.9rem;
+}
+
+.menu-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 1rem;
+}
+
+.menu-card {
+  display: flex;
+  min-height: 14rem;
+  flex-direction: column;
+  gap: 0.9rem;
+  border: 1px solid #e2e8f0;
+  border-radius: 1rem;
+  padding: 1.1rem;
+  background: #fff;
+  box-shadow: 0 4px 12px rgb(15 23 42 / 4%);
+}
+
+.card-header {
+  align-items: flex-start;
+}
+
+.category {
+  display: block;
+  margin-bottom: 0.35rem;
+  color: #0f766e;
+  letter-spacing: 0.08em;
+}
+
+.availability {
+  border-radius: 999px;
+  padding: 0.35rem 0.55rem;
+  background: #dcfce7;
+  color: #166534;
+  font-size: 0.75rem;
+  font-weight: 700;
+  white-space: nowrap;
+}
+
+.availability.out-of-stock {
+  background: #fef3c7;
+  color: #92400e;
+}
+
+.description {
+  flex: 1;
+  line-height: 1.5;
+}
+
+.price {
+  color: #0f172a;
+  font-size: 1.25rem;
+}
+
+.card-actions {
+  align-items: stretch;
+  flex-wrap: wrap;
+}
+
+.card-actions .secondary-button,
+.card-actions .danger-button {
+  flex: 1;
+  font-size: 0.8rem;
+}
+
+.loading,
+.empty-state {
+  display: grid;
+  min-height: 16rem;
+  place-items: center;
+  color: #64748b;
+  text-align: center;
+}
+
+@media (max-width: 1050px) {
+  .menu-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+@media (max-width: 720px) {
+  .page-header {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+
+  .form-grid,
+  .menu-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .wide-field {
+    grid-column: auto;
+  }
+}

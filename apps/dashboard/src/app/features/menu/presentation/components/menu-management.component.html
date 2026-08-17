@@ -1,0 +1,113 @@
+<section class="menu-management" aria-labelledby="menu-title">
+  <header class="page-header">
+    <div>
+      <p class="eyebrow">Catalog</p>
+      <h1 id="menu-title">Menu management</h1>
+      <p class="subtitle">Create, edit, archive, and publish menu items for this restaurant.</p>
+    </div>
+    <button type="button" class="primary-button" (click)="openCreate()">Add menu item</button>
+  </header>
+
+  @if (store.error(); as error) {
+    <div class="error-banner" role="alert">{{ error }}</div>
+  }
+
+  @if (editorOpen) {
+    <form class="editor" (submit)="$event.preventDefault(); save()">
+      <div class="editor-header">
+        <div>
+          <p class="eyebrow">{{ editingId ? 'Edit item' : 'New item' }}</p>
+          <h2>{{ editingId ? 'Update menu item' : 'Create menu item' }}</h2>
+        </div>
+        <button type="button" class="secondary-button" (click)="closeEditor()">Cancel</button>
+      </div>
+
+      <div class="form-grid">
+        <label>
+          Name
+          <input name="name" [(ngModel)]="form.name" required />
+        </label>
+        <label>
+          Category
+          <input name="category" [(ngModel)]="form.category" required />
+        </label>
+        <label>
+          Price
+          <input name="price" type="number" min="0" step="1" [(ngModel)]="form.price" required />
+        </label>
+        <label>
+          Availability
+          <select name="availability" [(ngModel)]="form.availability">
+            @for (availability of availabilityOptions; track availability) {
+              <option [value]="availability">
+                {{ availability === 'in_stock' ? 'In stock' : 'Out of stock' }}
+              </option>
+            }
+          </select>
+        </label>
+        <label class="wide-field">
+          Description
+          <textarea name="description" rows="3" [(ngModel)]="form.description"></textarea>
+        </label>
+      </div>
+
+      <div class="editor-actions">
+        <button type="submit" class="primary-button" [disabled]="store.saving()">
+          {{ store.saving() ? 'Saving…' : editingId ? 'Save changes' : 'Create item' }}
+        </button>
+      </div>
+    </form>
+  }
+
+  @if (store.loading()) {
+    <div class="loading" aria-live="polite">Loading menu…</div>
+  } @else {
+    <div class="summary-row">
+      <span>{{ store.items().length }} active item(s)</span>
+      <span
+        >{{ store.categories().length }} categor{{
+          store.categories().length === 1 ? 'y' : 'ies'
+        }}</span
+      >
+    </div>
+
+    <div class="menu-grid">
+      @for (item of store.items(); track item.id) {
+        <article class="menu-card">
+          <div class="card-header">
+            <div>
+              <span class="category">{{ item.category }}</span>
+              <h2>{{ item.name }}</h2>
+            </div>
+            <span class="availability" [class.out-of-stock]="item.availability === 'out_of_stock'">
+              {{ item.availability === 'in_stock' ? 'In stock' : 'Out of stock' }}
+            </span>
+          </div>
+          <p class="description">{{ item.description || 'No description provided.' }}</p>
+          <strong class="price">{{ formatCurrency(item.price) }}</strong>
+          <div class="card-actions">
+            <button type="button" class="secondary-button" (click)="openEdit(item)">Edit</button>
+            <button
+              type="button"
+              class="secondary-button"
+              [disabled]="store.isSaving(item.id)"
+              (click)="toggleAvailability(item)"
+            >
+              {{ item.availability === 'in_stock' ? 'Mark out of stock' : 'Mark in stock' }}
+            </button>
+            <button
+              type="button"
+              class="danger-button"
+              [disabled]="store.isSaving(item.id)"
+              (click)="archive(item)"
+            >
+              Archive
+            </button>
+          </div>
+        </article>
+      } @empty {
+        <div class="empty-state">No menu items yet. Add the first item to get started.</div>
+      }
+    </div>
+  }
+</section>

@@ -20,6 +20,47 @@ class FirestoreCustomerRepository implements CustomerRepository {
   final String tableSessionId;
   final String customerSessionId;
 
+  static const _defaultMenu = <MenuItem>[
+    MenuItem(
+      id: 'default-pho-bo',
+      category: 'Mains',
+      name: 'Phở bò',
+      description: 'Slow-simmered beef noodle soup',
+      price: 85000,
+    ),
+    MenuItem(
+      id: 'default-bun-cha',
+      category: 'Mains',
+      name: 'Bún chả',
+      description: 'Grilled pork with rice noodles',
+      price: 79000,
+    ),
+    MenuItem(
+      id: 'default-spring-rolls',
+      category: 'Starters',
+      name: 'Spring rolls',
+      description: 'Fresh herbs, prawns, and peanut sauce',
+      price: 55000,
+    ),
+    MenuItem(
+      id: 'default-iced-coffee',
+      category: 'Drinks',
+      name: 'Iced coffee',
+      description: 'Robusta coffee with condensed milk',
+      price: 35000,
+    ),
+    MenuItem(
+      id: 'default-lime-soda',
+      category: 'Drinks',
+      name: 'Lime soda',
+      description: 'Fresh lime and sparkling water',
+      price: 30000,
+    ),
+  ];
+
+  CollectionReference<Map<String, dynamic>> get _menu =>
+      _firestore.collection('restaurants').doc(restaurantId).collection('menu');
+
   CollectionReference<Map<String, dynamic>> get _orders => _firestore
       .collection('restaurants')
       .doc(restaurantId)
@@ -28,10 +69,10 @@ class FirestoreCustomerRepository implements CustomerRepository {
   @override
   Future<List<MenuItem>> getActiveMenu() async {
     try {
-      final snapshot = await _firestore
-          .collection('menuItems')
-          .where('restaurantId', isEqualTo: restaurantId)
-          .get();
+      final snapshot = await _menu.get();
+      if (snapshot.docs.isEmpty) {
+        return _seedDefaultMenu();
+      }
 
       return snapshot.docs
           .map(_menuItemFromDocument)
@@ -152,6 +193,28 @@ class FirestoreCustomerRepository implements CustomerRepository {
     'lineTotal': line.total,
   };
 
+  Future<List<MenuItem>> _seedDefaultMenu() async {
+    final batch = _firestore.batch();
+    for (final item in _defaultMenu) {
+      final reference = _menu.doc(item.id);
+      batch.set(reference, <String, Object?>{
+        'id': item.id,
+        'restaurantId': restaurantId,
+        'branchId': branchId,
+        'name': item.name,
+        'description': item.description,
+        'category': item.category,
+        'price': item.price,
+        'status': 'in_stock',
+        'isAvailable': true,
+        'createdAt': FieldValue.serverTimestamp(),
+        'updatedAt': FieldValue.serverTimestamp(),
+      }, SetOptions(merge: true));
+    }
+    await batch.commit();
+    return List.unmodifiable(_defaultMenu);
+  }
+
   MenuItem? _menuItemFromDocument(
     QueryDocumentSnapshot<Map<String, dynamic>> document,
   ) {
@@ -169,7 +232,8 @@ class FirestoreCustomerRepository implements CustomerRepository {
       name: name,
       description: data['description'] as String? ?? '',
       price: price.toInt(),
-      available: data['isAvailable'] as bool? ?? false,
+      available:
+          data['isAvailable'] as bool? ?? data['status'] != 'out_of_stock',
     );
   }
 
