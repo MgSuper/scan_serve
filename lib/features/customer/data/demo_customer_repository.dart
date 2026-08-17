@@ -7,18 +7,50 @@ class DemoCustomerRepository implements CustomerRepository {
   CustomerOrder? _activeOrder;
 
   static const _menu = <MenuItem>[
-    MenuItem(id: 'pho-bo', category: 'Mains', name: 'Phở bò', description: 'Slow-simmered beef noodle soup', price: 85000),
-    MenuItem(id: 'bun-cha', category: 'Mains', name: 'Bún chả', description: 'Grilled pork with rice noodles', price: 79000),
-    MenuItem(id: 'spring-rolls', category: 'Starters', name: 'Fresh spring rolls', description: 'Herbs, prawns, and peanut sauce', price: 55000),
-    MenuItem(id: 'iced-coffee', category: 'Drinks', name: 'Vietnamese iced coffee', description: 'Robusta coffee with condensed milk', price: 35000),
-    MenuItem(id: 'lime-soda', category: 'Drinks', name: 'Lime soda', description: 'Fresh lime and sparkling water', price: 30000),
+    MenuItem(
+      id: 'pho-bo',
+      category: 'Mains',
+      name: 'Phở bò',
+      description: 'Slow-simmered beef noodle soup',
+      price: 85000,
+    ),
+    MenuItem(
+      id: 'bun-cha',
+      category: 'Mains',
+      name: 'Bún chả',
+      description: 'Grilled pork with rice noodles',
+      price: 79000,
+    ),
+    MenuItem(
+      id: 'spring-rolls',
+      category: 'Starters',
+      name: 'Fresh spring rolls',
+      description: 'Herbs, prawns, and peanut sauce',
+      price: 55000,
+    ),
+    MenuItem(
+      id: 'iced-coffee',
+      category: 'Drinks',
+      name: 'Vietnamese iced coffee',
+      description: 'Robusta coffee with condensed milk',
+      price: 35000,
+    ),
+    MenuItem(
+      id: 'lime-soda',
+      category: 'Drinks',
+      name: 'Lime soda',
+      description: 'Fresh lime and sparkling water',
+      price: 30000,
+    ),
   ];
 
   @override
   Future<List<MenuItem>> getActiveMenu() async => _menu;
 
   @override
-  Future<CustomerOrder?> getActiveOrder() async => _activeOrder;
+  Stream<CustomerOrder?> getActiveOrder() async* {
+    yield _activeOrder;
+  }
 
   @override
   Future<void> requestWaiter() async {}

@@ -5,12 +5,31 @@ import 'package:scan_serve/features/customer/domain/models.dart';
 import 'package:scan_serve/features/customer/presentation/customer_cubit.dart';
 
 class _Repository implements CustomerRepository {
-  final item = const MenuItem(id: 'tea', category: 'Drinks', name: 'Tea', description: 'Iced tea', price: 20000);
+  final item = const MenuItem(
+    id: 'tea',
+    category: 'Drinks',
+    name: 'Tea',
+    description: 'Iced tea',
+    price: 20000,
+  );
 
-  @override Future<List<MenuItem>> getActiveMenu() async => [item];
-  @override Future<CustomerOrder?> getActiveOrder() async => null;
-  @override Future<void> requestWaiter() async {}
-  @override Future<CustomerOrder> submitOrder(List<CartLine> lines) async => CustomerOrder(id: 'ORD-1', lines: lines, status: OrderStatus.pending, createdAt: DateTime(2026));
+  @override
+  Future<List<MenuItem>> getActiveMenu() async => [item];
+  @override
+  Stream<CustomerOrder?> getActiveOrder() async* {
+    yield null;
+  }
+
+  @override
+  Future<void> requestWaiter() async {}
+  @override
+  Future<CustomerOrder> submitOrder(List<CartLine> lines) async =>
+      CustomerOrder(
+        id: 'ORD-1',
+        lines: lines,
+        status: OrderStatus.pending,
+        createdAt: DateTime(2026),
+      );
 }
 
 void main() {
@@ -19,17 +38,35 @@ void main() {
       'loads the active menu',
       build: () => CustomerCubit(_Repository()),
       act: (cubit) => cubit.load(),
-      expect: () => [isA<CustomerState>().having((state) => state.loading, 'loading', false).having((state) => state.menu, 'menu', hasLength(1))],
+      expect: () => [
+        isA<CustomerState>()
+            .having((state) => state.loading, 'loading', false)
+            .having((state) => state.menu, 'menu', hasLength(1)),
+      ],
     );
 
     blocTest<CustomerCubit, CustomerState>(
       'adds items and submits an order',
       build: () => CustomerCubit(_Repository()),
-      act: (cubit) async { await cubit.load(); cubit.add(_Repository().item); await cubit.submitOrder(); },
+      act: (cubit) async {
+        await cubit.load();
+        cubit.add(_Repository().item);
+        await cubit.submitOrder();
+      },
       expect: () => [
-        isA<CustomerState>().having((state) => state.menu, 'menu', hasLength(1)),
-        isA<CustomerState>().having((state) => state.cartQuantity, 'cart quantity', 1),
-        isA<CustomerState>().having((state) => state.order?.id, 'order id', 'ORD-1').having((state) => state.cart, 'cart', isEmpty),
+        isA<CustomerState>().having(
+          (state) => state.menu,
+          'menu',
+          hasLength(1),
+        ),
+        isA<CustomerState>().having(
+          (state) => state.cartQuantity,
+          'cart quantity',
+          1,
+        ),
+        isA<CustomerState>()
+            .having((state) => state.order?.id, 'order id', 'ORD-1')
+            .having((state) => state.cart, 'cart', isEmpty),
       ],
     );
   });

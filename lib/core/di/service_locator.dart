@@ -13,7 +13,7 @@ import 'package:scan_serve/features/cart/domain/use_cases/remove_from_cart.dart'
 import 'package:scan_serve/features/cart/domain/use_cases/submit_order_use_case.dart';
 import 'package:scan_serve/features/cart/presentation/bloc/cart_bloc.dart';
 import 'package:scan_serve/features/cart/presentation/bloc/cart_state.dart';
-import 'package:scan_serve/features/customer/data/demo_customer_repository.dart';
+import 'package:scan_serve/features/customer/data/firestore_customer_repository.dart';
 import 'package:scan_serve/features/customer/domain/customer_repository.dart';
 import 'package:scan_serve/features/menu/data/menu_repository_impl.dart';
 import 'package:scan_serve/features/menu/domain/repositories/menu_repository.dart';
@@ -102,6 +102,30 @@ Future<void> setupLocator(AppConfig config) async {
   }
 
   if (!sl.isRegistered<CustomerRepository>()) {
-    sl.registerLazySingleton<CustomerRepository>(DemoCustomerRepository.new);
+    sl.registerLazySingleton<CustomerRepository>(
+      () => FirestoreCustomerRepository(
+        firestore: sl<FirebaseFirestore>(),
+        restaurantId: const String.fromEnvironment(
+          'SCAN_SERVE_RESTAURANT_ID',
+          defaultValue: 'restaurant-demo',
+        ),
+        branchId: const String.fromEnvironment(
+          'SCAN_SERVE_BRANCH_ID',
+          defaultValue: 'main-branch',
+        ),
+        tableId: const String.fromEnvironment(
+          'SCAN_SERVE_TABLE_ID',
+          defaultValue: 'table-12',
+        ),
+        tableSessionId: const String.fromEnvironment(
+          'SCAN_SERVE_TABLE_SESSION_ID',
+          defaultValue: 'active-table-session',
+        ),
+        customerSessionId: const String.fromEnvironment(
+          'SCAN_SERVE_CUSTOMER_SESSION_ID',
+          defaultValue: 'active-customer-session',
+        ),
+      ),
+    );
   }
 }
