@@ -38,7 +38,11 @@ const requireString = (source: Record<string, unknown>, field: string): string =
 const optionalString = (source: Record<string, unknown>, field: string): string | undefined => {
   const value = source[field];
   if (value === undefined || value === null) return undefined;
-  return requireString(source, field);
+  if (typeof value !== 'string') {
+    throw new ApplicationError('INVALID_REQUEST', `${field} must be a string when provided.`);
+  }
+  const normalized = value.trim();
+  return normalized.length === 0 ? undefined : normalized;
 };
 
 const parseItems = (value: unknown): SubmitOrderItem[] | undefined => {

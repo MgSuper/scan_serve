@@ -144,6 +144,8 @@ class FirestoreCustomerRepository implements CustomerRepository {
     final now = DateTime.now();
     final requestId =
         '${customerSessionId}_${DateTime.now().microsecondsSinceEpoch}';
+    final cartId =
+        'cart_${customerSessionId.trim().isEmpty ? tableSessionId : customerSessionId}';
     try {
       final callable = _functions.httpsCallable('submitOrder');
       final result = await callable.call(<String, Object?>{
@@ -152,6 +154,7 @@ class FirestoreCustomerRepository implements CustomerRepository {
         'payload': <String, Object?>{
           'restaurantId': restaurantId,
           'customerSessionId': customerSessionId,
+          'cartId': cartId,
           'branchId': branchId,
           'tableId': tableId,
           'tableSessionId': tableSessionId,

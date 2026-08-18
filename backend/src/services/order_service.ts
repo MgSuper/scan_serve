@@ -35,15 +35,13 @@ export class OrderService {
   public constructor(private readonly firestore: Firestore) {}
 
   public async submitOrder(requestId: string, input: SubmitOrderPayload): Promise<OrderSummary> {
-    const items = input.items;
+    const resolvedCartId = input.cartId ?? `cart_${requestId}`;
+    const resolvedInput = { ...input, cartId: resolvedCartId };
+    const items = resolvedInput.items;
     if (items?.length) {
-      return this.submitInlineOrder(requestId, { ...input, items });
+      return this.submitInlineOrder(requestId, { ...resolvedInput, items });
     }
-    const cartId = input.cartId;
-    if (!cartId) {
-      throw new ApplicationError('INVALID_REQUEST', 'cartId or items is required.');
-    }
-    return this.submitCartOrder(requestId, { ...input, cartId });
+    return this.submitCartOrder(requestId, { ...resolvedInput, cartId: resolvedCartId });
   }
 
   private async submitCartOrder(
@@ -259,6 +257,7 @@ export class OrderService {
       tableId: session.tableId,
       tableSessionId: session.tableSessionId,
       customerSessionId: input.customerSessionId,
+      cartId: input.cartId ?? null,
       items: orderItems.map((item) => item.nested),
       totalAmount: subtotal,
       submittedAt: now,
@@ -287,6 +286,7 @@ export class OrderService {
       requestId,
       restaurantId: input.restaurantId,
       orderId,
+      cartId: input.cartId ?? null,
       summary,
       createdAt: now,
       expiresAt: Timestamp.fromMillis(now.toMillis() + 24 * 60 * 60 * 1000),
