@@ -1,10 +1,32 @@
 import { ApplicationError } from '../shared/errors/application_error';
 import type { ApiRequest } from '../shared/api/contracts';
 
-export interface SubmitOrderPayload { restaurantId: string; customerSessionId: string; cartId: string; }
-export interface UpdateOrderStatusPayload { restaurantId: string; orderId: string; status: 'ACCEPTED' | 'PREPARING' | 'READY' | 'SERVED'; }
+export interface SubmitOrderItem {
+  menuItemId: string;
+  quantity: number;
+  note?: string;
+  modifiers?: string[];
+}
 
-const isRecord = (value: unknown): value is Record<string, unknown> => typeof value === 'object' && value !== null && !Array.isArray(value);
+export interface SubmitOrderPayload {
+  restaurantId: string;
+  customerSessionId: string;
+  cartId?: string;
+  branchId?: string;
+  tableId?: string;
+  tableSessionId?: string;
+  items?: SubmitOrderItem[];
+}
+
+export interface UpdateOrderStatusPayload {
+  restaurantId: string;
+  orderId: string;
+  status: 'ACCEPTED' | 'PREPARING' | 'READY' | 'SERVED';
+}
+
+const isRecord = (value: unknown): value is Record<string, unknown> =>
+  typeof value === 'object' && value !== null && !Array.isArray(value);
+
 const requireString = (source: Record<string, unknown>, field: string): string => {
   const value = source[field];
   if (typeof value !== 'string' || value.trim().length === 0) {
@@ -13,7 +35,50 @@ const requireString = (source: Record<string, unknown>, field: string): string =
   return value;
 };
 
-export const parseEnvelope = <T>(data: unknown, parsePayload: (payload: Record<string, unknown>) => T): ApiRequest<T> => {
+const optionalString = (source: Record<string, unknown>, field: string): string | undefined => {
+  const value = source[field];
+  if (value === undefined || value === null) return undefined;
+  return requireString(source, field);
+};
+
+const parseItems = (value: unknown): SubmitOrderItem[] | undefined => {
+  if (value === undefined || value === null) return undefined;
+  if (!Array.isArray(value) || value.length === 0) {
+    throw new ApplicationError('INVALID_REQUEST', 'items must contain at least one item.');
+  }
+  return value.map((rawItem) => {
+    if (!isRecord(rawItem)) {
+      throw new ApplicationError('INVALID_REQUEST', 'Each order item must be an object.');
+    }
+    const quantity = rawItem.quantity;
+    if (!Number.isSafeInteger(quantity) || (quantity as number) <= 0) {
+      throw new ApplicationError('INVALID_REQUEST', 'Each order item quantity must be a positive integer.');
+    }
+    const note = rawItem.note;
+    if (note !== undefined && note !== null && typeof note !== 'string') {
+      throw new ApplicationError('INVALID_REQUEST', 'Order item note must be a string.');
+    }
+    const modifiers = rawItem.modifiers;
+    if (
+      modifiers !== undefined &&
+      modifiers !== null &&
+      (!Array.isArray(modifiers) || modifiers.some((modifier) => typeof modifier !== 'string'))
+    ) {
+      throw new ApplicationError('INVALID_REQUEST', 'Order item modifiers must be strings.');
+    }
+    return {
+      menuItemId: requireString(rawItem, 'menuItemId'),
+      quantity: quantity as number,
+      ...(note === undefined || note === null ? {} : { note }),
+      ...(modifiers === undefined || modifiers === null ? {} : { modifiers }),
+    };
+  });
+};
+
+export const parseEnvelope = <T>(
+  data: unknown,
+  parsePayload: (payload: Record<string, unknown>) => T,
+): ApiRequest<T> => {
   if (!isRecord(data) || !isRecord(data.payload)) {
     throw new ApplicationError('INVALID_REQUEST', 'requestId, payload, and timestamp are required.');
   }
@@ -29,14 +94,39 @@ export const parseEnvelope = <T>(data: unknown, parsePayload: (payload: Record<s
   return { requestId, timestamp, clientVersion, payload: parsePayload(data.payload) };
 };
 
-export const parseSubmitOrder = (data: unknown): ApiRequest<SubmitOrderPayload> => parseEnvelope(data, (payload) => ({
-  restaurantId: requireString(payload, 'restaurantId'), customerSessionId: requireString(payload, 'customerSessionId'), cartId: requireString(payload, 'cartId'),
-}));
+export const parseSubmitOrder = (data: unknown): ApiRequest<SubmitOrderPayload> =>
+  parseEnvelope(data, (payload) => {
+    const items = parseItems(payload.items);
+    const cartId = optionalString(payload, 'cartId');
+    if (!cartId && !items) {
+      throw new ApplicationError('INVALID_REQUEST', 'cartId or items is required.');
+    }
+    return {
+      restaurantId: requireString(payload, 'restaurantId'),
+      customerSessionId: requireString(payload, 'customerSessionId'),
+      ...(cartId ? { cartId } : {}),
+      ...(items ? { items } : {}),
+      ...(optionalString(payload, 'branchId')
+        ? { branchId: optionalString(payload, 'branchId') }
+        : {}),
+      ...(optionalString(payload, 'tableId')
+        ? { tableId: optionalString(payload, 'tableId') }
+        : {}),
+      ...(optionalString(payload, 'tableSessionId')
+        ? { tableSessionId: optionalString(payload, 'tableSessionId') }
+        : {}),
+    };
+  });
 
-export const parseUpdateOrderStatus = (data: unknown): ApiRequest<UpdateOrderStatusPayload> => parseEnvelope(data, (payload) => {
-  const status = requireString(payload, 'status');
-  if (!['ACCEPTED', 'PREPARING', 'READY', 'SERVED'].includes(status)) {
-    throw new ApplicationError('INVALID_REQUEST', 'status must be ACCEPTED, PREPARING, READY, or SERVED.');
-  }
-  return { restaurantId: requireString(payload, 'restaurantId'), orderId: requireString(payload, 'orderId'), status: status as UpdateOrderStatusPayload['status'] };
-});
+export const parseUpdateOrderStatus = (data: unknown): ApiRequest<UpdateOrderStatusPayload> =>
+  parseEnvelope(data, (payload) => {
+    const status = requireString(payload, 'status');
+    if (!['ACCEPTED', 'PREPARING', 'READY', 'SERVED'].includes(status)) {
+      throw new ApplicationError('INVALID_REQUEST', 'status must be ACCEPTED, PREPARING, READY, or SERVED.');
+    }
+    return {
+      restaurantId: requireString(payload, 'restaurantId'),
+      orderId: requireString(payload, 'orderId'),
+      status: status as UpdateOrderStatusPayload['status'],
+    };
+  });

@@ -98,6 +98,7 @@ Future<void> setupLocator(AppConfig config) async {
     sl.registerLazySingleton<CustomerRepository>(
       () => FirestoreCustomerRepository(
         firestore: sl<FirebaseFirestore>(),
+        functions: sl<FirebaseFunctions>(),
         restaurantId: const String.fromEnvironment(
           'SCAN_SERVE_RESTAURANT_ID',
           defaultValue: 'scanserve-demo',

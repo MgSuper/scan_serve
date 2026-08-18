@@ -1,4 +1,5 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:cloud_functions/cloud_functions.dart';
 
 import '../domain/customer_repository.dart';
 import '../domain/models.dart';
@@ -6,14 +7,17 @@ import '../domain/models.dart';
 class FirestoreCustomerRepository implements CustomerRepository {
   FirestoreCustomerRepository({
     required FirebaseFirestore firestore,
+    required FirebaseFunctions functions,
     required this.restaurantId,
     required this.tableId,
     this.branchId = 'main-branch',
     this.tableSessionId = 'active-table-session',
     this.customerSessionId = 'active-customer-session',
-  }) : _firestore = firestore;
+  }) : _firestore = firestore,
+       _functions = functions;
 
   final FirebaseFirestore _firestore;
+  final FirebaseFunctions _functions;
   final String restaurantId;
   final String branchId;
   final String tableId;
@@ -120,43 +124,67 @@ class FirestoreCustomerRepository implements CustomerRepository {
   Future<CustomerOrder> submitOrder(List<CartLine> lines) async {
     if (lines.isEmpty) throw StateError('Your cart is empty.');
 
-    final orderReference = _orders.doc();
     final now = DateTime.now();
-    final totalAmount = lines.fold<int>(
-      0,
-      (subtotal, line) => subtotal + line.total,
-    );
-    final payload = <String, Object?>{
-      'id': orderReference.id,
-      'restaurantId': restaurantId,
-      'branchId': branchId,
-      'tableId': tableId,
-      'tableSessionId': tableSessionId,
-      'customerSessionId': customerSessionId,
-      'items': lines.map(_lineToFirestore).toList(growable: false),
-      'status': 'PENDING',
-      'totalAmount': totalAmount,
-      'totalQuantity': lines.fold<int>(
-        0,
-        (quantity, line) => quantity + line.quantity,
-      ),
-      'createdAt': FieldValue.serverTimestamp(),
-      'updatedAt': FieldValue.serverTimestamp(),
-    };
-
+    final requestId =
+        '${customerSessionId}_${DateTime.now().microsecondsSinceEpoch}';
     try {
-      await orderReference.set(payload);
+      final callable = _functions.httpsCallable('submitOrder');
+      final result = await callable.call(<String, Object?>{
+        'requestId': requestId,
+        'timestamp': now.toUtc().toIso8601String(),
+        'payload': <String, Object?>{
+          'restaurantId': restaurantId,
+          'customerSessionId': customerSessionId,
+          'branchId': branchId,
+          'tableId': tableId,
+          'tableSessionId': tableSessionId,
+          'items': lines
+              .map(
+                (line) => <String, Object?>{
+                  'menuItemId': line.item.id,
+                  'quantity': line.quantity,
+                },
+              )
+              .toList(growable: false),
+        },
+      });
+      final envelope = _record(result.data);
+      if (envelope['success'] != true) {
+        final error = envelope['error'];
+        final errorRecord = error is Map
+            ? Map<String, dynamic>.from(error)
+            : const <String, dynamic>{};
+        throw StateError(
+          errorRecord['message'] as String? ?? 'Unable to submit the order.',
+        );
+      }
+      final data = _record(envelope['data']);
+      final orderId = data['id'];
+      if (orderId is! String || orderId.isEmpty) {
+        throw StateError('The order response did not contain an order ID.');
+      }
       return CustomerOrder(
-        id: orderReference.id,
+        id: orderId,
         lines: List.unmodifiable(lines),
         status: OrderStatus.pending,
         createdAt: now,
+      );
+    } on StateError {
+      rethrow;
+    } on FirebaseFunctionsException catch (error) {
+      throw StateError(
+        error.message ?? 'Unable to submit the order. Please try again.',
       );
     } on FirebaseException catch (error) {
       throw StateError(
         _firebaseMessage(error, fallback: 'Unable to submit the order.'),
       );
     }
+  }
+
+  Map<String, dynamic> _record(Object? value) {
+    if (value is Map) return Map<String, dynamic>.from(value);
+    throw StateError('The order response was invalid.');
   }
 
   @override
@@ -182,16 +210,6 @@ class FirestoreCustomerRepository implements CustomerRepository {
       );
     }
   }
-
-  Map<String, Object?> _lineToFirestore(CartLine line) => <String, Object?>{
-    'itemId': line.item.id,
-    'name': line.item.name,
-    'description': line.item.description,
-    'category': line.item.category,
-    'unitPrice': line.item.price,
-    'quantity': line.quantity,
-    'lineTotal': line.total,
-  };
 
   Future<List<MenuItem>> _seedDefaultMenu() async {
     final batch = _firestore.batch();

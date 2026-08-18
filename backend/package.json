@@ -8,7 +8,8 @@
   },
   "scripts": {
     "build": "tsc",
-    "lint": "tsc --noEmit"
+    "lint": "tsc --noEmit",
+    "seed:menu": "node scripts/seed-emulator-menu.cjs"
   },
   "dependencies": {
     "firebase-admin": "^13.0.0",
