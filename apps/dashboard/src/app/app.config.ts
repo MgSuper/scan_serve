@@ -2,7 +2,7 @@ import { ApplicationConfig, provideBrowserGlobalErrorListeners } from '@angular/
 import { provideRouter } from '@angular/router';
 import { initializeApp, provideFirebaseApp } from '@angular/fire/app';
 import { getFirestore, provideFirestore } from '@angular/fire/firestore';
-import { getFunctions, provideFunctions } from '@angular/fire/functions';
+import { connectFunctionsEmulator, getFunctions, provideFunctions } from '@angular/fire/functions';
 
 import { environment } from '../environments/environment';
 import { KitchenRepository } from './features/kitchen/domain/kitchen-repository';
@@ -19,7 +19,13 @@ export const appConfig: ApplicationConfig = {
     provideRouter(routes),
     provideFirebaseApp(() => initializeApp(environment.firebase)),
     provideFirestore(() => getFirestore()),
-    provideFunctions(() => getFunctions()),
+    provideFunctions(() => {
+      const functions = getFunctions();
+      if (location.hostname === 'localhost') {
+        connectFunctionsEmulator(functions, 'localhost', 5001);
+      }
+      return functions;
+    }),
     { provide: KitchenRepository, useClass: KitchenRepositoryImpl },
     { provide: MenuRepository, useClass: MenuRepositoryImpl },
     { provide: WatchKitchenQueueUseCase, useClass: WatchKitchenQueueUseCase },
