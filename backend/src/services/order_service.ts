@@ -11,6 +11,7 @@ interface CartItemRecord {
   quantity: number;
   note?: string;
   modifiers?: string[];
+  unitPrice?: number;
 }
 
 interface OrderSummary {
@@ -271,7 +272,7 @@ export class OrderService {
           transaction.get(legacy),
           transaction.get(nested),
         ]);
-        return legacySnapshot.exists ? legacySnapshot : nestedSnapshot;
+        return { legacySnapshot, nestedSnapshot, nested };
       }),
     );
     const orderId = this.firestore.collection('orders').doc().id;
@@ -280,33 +281,67 @@ export class OrderService {
       data: Record<string, unknown>;
       nested: Record<string, unknown>;
     }> = [];
+    const menuToCreate: Array<{
+      ref: FirebaseFirestore.DocumentReference;
+      data: Record<string, unknown>;
+    }> = [];
+    const developmentFallbackEnabled = this.isDevelopmentSessionFallbackEnabled();
 
     for (let index = 0; index < menuSnapshots.length; index += 1) {
-      const snapshot = menuSnapshots[index];
+      const { legacySnapshot, nestedSnapshot, nested } = menuSnapshots[index];
+      const snapshot = legacySnapshot.exists ? legacySnapshot : nestedSnapshot;
+      const line = lines[index];
+      let menu: Record<string, unknown>;
+      let menuItemId: string;
       if (!snapshot.exists) {
-        throw new ApplicationError('NOT_FOUND', 'A menu item is no longer available.');
+        if (!developmentFallbackEnabled) {
+          throw new ApplicationError('NOT_FOUND', 'A menu item is no longer available.');
+        }
+        menuItemId = line.menuItemId;
+        menu = this.createDevelopmentMenuItem(input, session, line, now);
+        menuToCreate.push({ ref: nested, data: menu });
+      } else {
+        menuItemId = snapshot.id;
+        menu = requireRecord(snapshot.data(), 'Menu item is invalid.');
       }
-      const menu = requireRecord(snapshot.data(), 'Menu item is invalid.');
+
+      const restaurantMatches =
+        typeof menu.restaurantId !== 'string'
+          ? developmentFallbackEnabled
+          : menu.restaurantId === input.restaurantId;
+      const branchMatches =
+        typeof menu.branchId !== 'string'
+          ? developmentFallbackEnabled
+          : menu.branchId === session.branchId;
+      const availabilityValid =
+        menu.isAvailable === undefined
+          ? developmentFallbackEnabled
+          : menu.isAvailable === true;
       if (
-        menu.restaurantId !== input.restaurantId ||
-        menu.branchId !== session.branchId ||
-        menu.isAvailable !== true ||
+        !restaurantMatches ||
+        !branchMatches ||
+        !availabilityValid ||
         menu.isArchived === true ||
         menu.deletedAt
       ) {
         throw new ApplicationError('VALIDATION_FAILED', 'A menu item is unavailable.');
       }
-      const unitPrice = menu.price;
-      if (!Number.isSafeInteger(unitPrice) || (unitPrice as number) < 0) {
+      const rawPrice = menu.price;
+      const unitPrice =
+        Number.isSafeInteger(rawPrice) && (rawPrice as number) >= 0
+          ? (rawPrice as number)
+          : developmentFallbackEnabled
+            ? 1000
+            : undefined;
+      if (unitPrice === undefined) {
         throw new ApplicationError('INTERNAL_ERROR', 'Menu item price is invalid.');
       }
-      const line = lines[index];
       const orderItemRef = this.firestore.collection('orderItems').doc();
-      const lineTotal = (unitPrice as number) * line.quantity;
+      const lineTotal = unitPrice * line.quantity;
       const nestedItem = {
-        itemId: snapshot.id,
-        menuItemId: snapshot.id,
-        name: typeof menu.name === 'string' ? menu.name : snapshot.id,
+        itemId: menuItemId,
+        menuItemId,
+        name: typeof menu.name === 'string' ? menu.name : menuItemId,
         category: typeof menu.category === 'string' ? menu.category : 'Menu',
         unitPrice,
         price: unitPrice,
@@ -320,9 +355,9 @@ export class OrderService {
           orderId,
           restaurantId: input.restaurantId,
           branchId: session.branchId,
-          menuItemId: snapshot.id,
+          menuItemId,
           categoryId: typeof menu.categoryId === 'string' ? menu.categoryId : null,
-          name: menu.name,
+          name: nestedItem.name,
           unitPrice,
           quantity: line.quantity,
           lineTotal,
@@ -380,6 +415,7 @@ export class OrderService {
     if (cartToCreate) {
       transaction.create(cartToCreate.ref, cartToCreate.data);
     }
+    menuToCreate.forEach((menu) => transaction.create(menu.ref, menu.data));
     transaction.create(orderRef, orderData);
     transaction.create(nestedOrderRef, orderData);
     orderItems.forEach((item) => transaction.create(item.ref, item.data));
@@ -400,6 +436,32 @@ export class OrderService {
 
   private isDevelopmentSessionFallbackEnabled(): boolean {
     return Boolean(process.env.FIRESTORE_EMULATOR_HOST || process.env.FUNCTIONS_EMULATOR === 'true');
+  }
+
+  private createDevelopmentMenuItem(
+    input: SubmitOrderPayload,
+    session: Record<string, unknown>,
+    line: CartItemRecord,
+    now: Timestamp,
+  ): Record<string, unknown> {
+    const unitPrice =
+      Number.isSafeInteger(line.unitPrice) && (line.unitPrice as number) >= 0
+        ? (line.unitPrice as number)
+        : 1000;
+    return {
+      id: line.menuItemId,
+      name: line.menuItemId,
+      description: 'Development fallback menu item',
+      category: 'Menu',
+      restaurantId: input.restaurantId,
+      branchId: session.branchId ?? input.branchId ?? 'main-branch',
+      price: unitPrice,
+      isAvailable: true,
+      isArchived: false,
+      deletedAt: null,
+      createdAt: now,
+      updatedAt: now,
+    };
   }
 
   private createDevelopmentCart(
