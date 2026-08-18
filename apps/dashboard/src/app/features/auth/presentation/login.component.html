@@ -1,0 +1,67 @@
+<main class="login-page">
+  <section class="login-shell" aria-labelledby="login-title">
+    <div class="login-intro">
+      <p class="eyebrow">ScanServe operations</p>
+      <h1 id="login-title">Welcome back.</h1>
+      <p class="intro-copy">
+        Sign in to manage live orders, kitchen status, and table service from one calm workspace.
+      </p>
+      <div class="trust-note">
+        <span class="status-dot" aria-hidden="true"></span>
+        <span>Staff workspace · Secure Firebase session</span>
+      </div>
+    </div>
+
+    <form class="login-card" #loginForm="ngForm" (ngSubmit)="submit(loginForm)" novalidate>
+      <div class="card-heading">
+        <p class="eyebrow">Kitchen staff</p>
+        <h2>Sign in to continue</h2>
+      </div>
+
+      @if (error(); as errorMessage) {
+        <div class="error-message" role="alert">{{ errorMessage }}</div>
+      }
+
+      <label for="email">Work email</label>
+      <input
+        id="email"
+        name="email"
+        type="email"
+        autocomplete="username"
+        placeholder="you@restaurant.com"
+        [(ngModel)]="email"
+        #emailField="ngModel"
+        required
+        email
+      />
+      @if (emailField.invalid && (emailField.dirty || emailField.touched)) {
+        <p class="field-error">Enter a valid work email.</p>
+      }
+
+      <label for="password">Password</label>
+      <input
+        id="password"
+        name="password"
+        type="password"
+        autocomplete="current-password"
+        placeholder="Enter your password"
+        [(ngModel)]="password"
+        #passwordField="ngModel"
+        required
+        minlength="6"
+      />
+      @if (passwordField.invalid && (passwordField.dirty || passwordField.touched)) {
+        <p class="field-error">Password must contain at least six characters.</p>
+      }
+
+      <button type="submit" [disabled]="submitting()">
+        @if (submitting()) {
+          Signing in…
+        } @else {
+          Sign in to kitchen
+        }
+      </button>
+      <p class="form-footnote">Your authenticated session is used for protected kitchen actions.</p>
+    </form>
+  </section>
+</main>
