@@ -90,6 +90,33 @@ export class OrderService {
       }
 
       if (!cartSnapshot.exists) {
+        if (this.isDevelopmentSessionFallbackEnabled() && input.items?.length) {
+          const lines = input.items.map((item) => ({
+            menuItemId: item.menuItemId,
+            quantity: item.quantity,
+            ...(item.note === undefined ? {} : { note: item.note }),
+            ...(item.modifiers === undefined ? {} : { modifiers: item.modifiers }),
+          }));
+          const sessionToCreate = sessionSnapshot.exists
+            ? undefined
+            : { ref: sessionRef, data: session };
+          return this.createOrderInTransaction(
+            transaction,
+            requestId,
+            input,
+            session,
+            lines,
+            now,
+            undefined,
+            sessionToCreate,
+          );
+        }
+        if (this.isDevelopmentSessionFallbackEnabled()) {
+          throw new ApplicationError(
+            'VALIDATION_FAILED',
+            'No cart or inline order items were provided.',
+          );
+        }
         throw new ApplicationError('NOT_FOUND', 'Cart was not found.');
       }
       const cart = requireRecord(cartSnapshot.data(), 'Cart is invalid.');

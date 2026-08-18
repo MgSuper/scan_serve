@@ -147,6 +147,14 @@ class FirestoreCustomerRepository implements CustomerRepository {
         '${customerSessionId}_${DateTime.now().microsecondsSinceEpoch}';
     final cartId =
         'cart_${customerSessionId.trim().isEmpty ? tableSessionId : customerSessionId}';
+    final payloadItems = lines
+        .map(
+          (line) => <String, Object?>{
+            'menuItemId': line.item.id,
+            'quantity': line.quantity,
+          },
+        )
+        .toList(growable: false);
     try {
       await _ensureCustomerSession();
       final callable = _functions.httpsCallable('submitOrder');
@@ -160,14 +168,7 @@ class FirestoreCustomerRepository implements CustomerRepository {
           'branchId': branchId,
           'tableId': tableId,
           'tableSessionId': tableSessionId,
-          'items': lines
-              .map(
-                (line) => <String, Object?>{
-                  'menuItemId': line.item.id,
-                  'quantity': line.quantity,
-                },
-              )
-              .toList(growable: false),
+          'items': payloadItems,
         },
       });
       final envelope = _record(result.data);

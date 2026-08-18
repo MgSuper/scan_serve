@@ -100,24 +100,31 @@ export const parseEnvelope = <T>(
 
 export const parseSubmitOrder = (data: unknown): ApiRequest<SubmitOrderPayload> =>
   parseEnvelope(data, (payload) => {
-    const items = parseItems(payload.items);
-    const cartId = optionalString(payload, 'cartId');
+    // Accept the canonical payload shape and tolerate one extra `payload` or
+    // `data` wrapper produced by generic callable clients.
+    const nestedPayload = isRecord(payload.payload)
+      ? payload.payload
+      : isRecord(payload.data)
+        ? payload.data
+        : payload;
+    const items = parseItems(nestedPayload.items ?? nestedPayload.lines);
+    const cartId = optionalString(nestedPayload, 'cartId');
     if (!cartId && !items) {
       throw new ApplicationError('INVALID_REQUEST', 'cartId or items is required.');
     }
     return {
-      restaurantId: requireString(payload, 'restaurantId'),
-      customerSessionId: requireString(payload, 'customerSessionId'),
+      restaurantId: requireString(nestedPayload, 'restaurantId'),
+      customerSessionId: requireString(nestedPayload, 'customerSessionId'),
       ...(cartId ? { cartId } : {}),
       ...(items ? { items } : {}),
-      ...(optionalString(payload, 'branchId')
-        ? { branchId: optionalString(payload, 'branchId') }
+      ...(optionalString(nestedPayload, 'branchId')
+        ? { branchId: optionalString(nestedPayload, 'branchId') }
         : {}),
-      ...(optionalString(payload, 'tableId')
-        ? { tableId: optionalString(payload, 'tableId') }
+      ...(optionalString(nestedPayload, 'tableId')
+        ? { tableId: optionalString(nestedPayload, 'tableId') }
         : {}),
-      ...(optionalString(payload, 'tableSessionId')
-        ? { tableSessionId: optionalString(payload, 'tableSessionId') }
+      ...(optionalString(nestedPayload, 'tableSessionId')
+        ? { tableSessionId: optionalString(nestedPayload, 'tableSessionId') }
         : {}),
     };
   });
