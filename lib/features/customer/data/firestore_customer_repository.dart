@@ -145,18 +145,10 @@ class FirestoreCustomerRepository implements CustomerRepository {
     final now = DateTime.now();
     final requestId =
         '${customerSessionId}_${DateTime.now().microsecondsSinceEpoch}';
-    final cartId =
-        'cart_${customerSessionId.trim().isEmpty ? tableSessionId : customerSessionId}';
-    final payloadItems = lines
-        .map(
-          (line) => <String, Object?>{
-            'menuItemId': line.item.id,
-            'quantity': line.quantity,
-          },
-        )
-        .toList(growable: false);
+    final cartReferenceId = cartId;
     try {
       await _ensureCustomerSession();
+      await _persistCart(lines);
       final callable = _functions.httpsCallable('submitOrder');
       final result = await callable.call(<String, Object?>{
         'requestId': requestId,
@@ -164,11 +156,10 @@ class FirestoreCustomerRepository implements CustomerRepository {
         'payload': <String, Object?>{
           'restaurantId': restaurantId,
           'customerSessionId': customerSessionId,
-          'cartId': cartId,
+          'cartId': cartReferenceId,
           'branchId': branchId,
           'tableId': tableId,
           'tableSessionId': tableSessionId,
-          'items': payloadItems,
         },
       });
       final envelope = _record(result.data);
@@ -204,6 +195,44 @@ class FirestoreCustomerRepository implements CustomerRepository {
       );
     }
   }
+
+  Future<void> _persistCart(List<CartLine> lines) async {
+    final cartReference = _firestore.collection('carts').doc(cartId);
+    final items = lines
+        .map(
+          (line) => <String, Object?>{
+            'menuItemId': line.item.id,
+            'name': line.item.name,
+            'unitPrice': line.item.price,
+            'quantity': line.quantity,
+            'lineTotal': line.total,
+            'note': null,
+            'modifiers': const <String>[],
+          },
+        )
+        .toList(growable: false);
+    await cartReference.set(<String, Object?>{
+      'id': cartId,
+      'restaurantId': restaurantId,
+      'branchId': branchId,
+      'tableId': tableId,
+      'tableSessionId': tableSessionId,
+      'customerSessionId': customerSessionId,
+      'items': items,
+      'totalQuantity': lines.fold<int>(
+        0,
+        (total, line) => total + line.quantity,
+      ),
+      'subtotal': lines.fold<int>(0, (total, line) => total + line.total),
+      'isArchived': false,
+      'deletedAt': null,
+      'createdAt': FieldValue.serverTimestamp(),
+      'updatedAt': FieldValue.serverTimestamp(),
+    }, SetOptions(merge: true));
+  }
+
+  String get cartId =>
+      'cart_${customerSessionId.trim().isEmpty ? tableSessionId : customerSessionId}';
 
   Future<void> _ensureCustomerSession() async {
     final sessionReference = _firestore

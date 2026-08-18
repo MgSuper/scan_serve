@@ -100,6 +100,10 @@ export class OrderService {
           const sessionToCreate = sessionSnapshot.exists
             ? undefined
             : { ref: sessionRef, data: session };
+          const cartToCreate = {
+            ref: cartRef,
+            data: this.createDevelopmentCart(input, lines, now),
+          };
           return this.createOrderInTransaction(
             transaction,
             requestId,
@@ -109,6 +113,7 @@ export class OrderService {
             now,
             undefined,
             sessionToCreate,
+            cartToCreate,
           );
         }
         if (this.isDevelopmentSessionFallbackEnabled()) {
@@ -164,9 +169,11 @@ export class OrderService {
     const result = await this.firestore.runTransaction(async (transaction) => {
       const idempotencyRef = this.firestore.collection('orderRequests').doc(requestId);
       const sessionRef = this.firestore.collection('customerSessions').doc(input.customerSessionId);
-      const [requestSnapshot, sessionSnapshot] = await Promise.all([
+      const cartRef = this.firestore.collection('carts').doc(input.cartId ?? `cart_${input.customerSessionId}`);
+      const [requestSnapshot, sessionSnapshot, cartSnapshot] = await Promise.all([
         transaction.get(idempotencyRef),
         transaction.get(sessionRef),
+        transaction.get(cartRef),
       ]);
       if (requestSnapshot.exists) {
         const previous = requireRecord(requestSnapshot.data(), 'Stored request is invalid.');
@@ -207,6 +214,12 @@ export class OrderService {
       const sessionToCreate = sessionSnapshot.exists
         ? undefined
         : { ref: sessionRef, data: session };
+      const cartToCreate = cartSnapshot.exists || !this.isDevelopmentSessionFallbackEnabled()
+        ? undefined
+        : {
+            ref: cartRef,
+            data: this.createDevelopmentCart(input, lines, now),
+          };
       return this.createOrderInTransaction(
         transaction,
         requestId,
@@ -214,8 +227,9 @@ export class OrderService {
         session,
         lines,
         now,
-        undefined,
+        cartSnapshot.exists ? cartRef : undefined,
         sessionToCreate,
+        cartToCreate,
       );
     });
     logger.info('submitOrder completed', {
@@ -235,6 +249,10 @@ export class OrderService {
     now: Timestamp,
     cartRef?: FirebaseFirestore.DocumentReference,
     sessionToCreate?: {
+      ref: FirebaseFirestore.DocumentReference;
+      data: Record<string, unknown>;
+    },
+    cartToCreate?: {
       ref: FirebaseFirestore.DocumentReference;
       data: Record<string, unknown>;
     },
@@ -359,6 +377,9 @@ export class OrderService {
     if (sessionToCreate) {
       transaction.create(sessionToCreate.ref, sessionToCreate.data);
     }
+    if (cartToCreate) {
+      transaction.create(cartToCreate.ref, cartToCreate.data);
+    }
     transaction.create(orderRef, orderData);
     transaction.create(nestedOrderRef, orderData);
     orderItems.forEach((item) => transaction.create(item.ref, item.data));
@@ -379,6 +400,35 @@ export class OrderService {
 
   private isDevelopmentSessionFallbackEnabled(): boolean {
     return Boolean(process.env.FIRESTORE_EMULATOR_HOST || process.env.FUNCTIONS_EMULATOR === 'true');
+  }
+
+  private createDevelopmentCart(
+    input: SubmitOrderPayload,
+    lines: CartItemRecord[],
+    now: Timestamp,
+  ): Record<string, unknown> {
+    const cartId = input.cartId ?? `cart_${input.customerSessionId}`;
+    const items = lines.map((line) => ({
+      menuItemId: line.menuItemId,
+      quantity: line.quantity,
+      ...(line.note === undefined ? {} : { note: line.note }),
+      ...(line.modifiers === undefined ? {} : { modifiers: line.modifiers }),
+    }));
+    return {
+      id: cartId,
+      restaurantId: input.restaurantId,
+      branchId: input.branchId ?? 'main-branch',
+      tableId: input.tableId ?? 'table-12',
+      tableSessionId: input.tableSessionId ?? 'active-table-session',
+      customerSessionId: input.customerSessionId,
+      items,
+      totalQuantity: lines.reduce((sum, line) => sum + line.quantity, 0),
+      subtotal: 0,
+      isArchived: false,
+      deletedAt: null,
+      createdAt: now,
+      updatedAt: now,
+    };
   }
 
   private createDevelopmentSession(

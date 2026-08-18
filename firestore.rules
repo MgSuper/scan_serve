@@ -86,7 +86,16 @@ service cloud.firestore {
     }
 
     match /carts/{cartId} {
-      allow read, write: if isStaff();
+      allow get: if isStaff();
+      allow create: if isStaff()
+        || (request.resource.data.restaurantId is string
+          && request.resource.data.customerSessionId is string
+          && request.resource.data.items is list
+          && request.resource.data.isArchived == false);
+      allow update: if isStaff()
+        || (request.resource.data.restaurantId == resource.data.restaurantId
+          && request.resource.data.customerSessionId == resource.data.customerSessionId);
+      allow delete: if isStaff();
     }
 
     match /orderItems/{orderItemId} {
