@@ -6,7 +6,9 @@ import { ApplicationError } from '../shared/errors/application_error';
 import { OrderStatusService } from '../services/order_status_service';
 import { parseUpdateOrderStatus } from '../validators/callable_request_validator';
 
-export const updateOrderStatus = onCall(async (request): Promise<ApiResponse<unknown>> => {
+export const updateOrderStatus = onCall(
+  { cors: ['http://localhost:4200'] },
+  async (request): Promise<ApiResponse<unknown>> => {
   let requestId = 'unknown';
   try {
     const envelope = parseUpdateOrderStatus(request.data);
@@ -21,5 +23,6 @@ export const updateOrderStatus = onCall(async (request): Promise<ApiResponse<unk
     }
     logger.error('updateOrderStatus failed', { requestId, error });
     return failure(requestId, { code: 'INTERNAL_ERROR', message: 'Unable to update order status.' });
-  }
-});
+    }
+  },
+);

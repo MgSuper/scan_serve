@@ -1,4 +1,21 @@
 <section class="kitchen-board" aria-labelledby="kitchen-title">
+  @if (toast(); as notification) {
+    <div class="order-toast" role="status" aria-live="polite" aria-atomic="true">
+      <div>
+        <strong>New order received</strong>
+        <span>Table {{ notification.tableId }} · #{{ notification.orderId.slice(0, 8) }}</span>
+      </div>
+      <button
+        type="button"
+        class="icon-button toast-close"
+        aria-label="Dismiss notification"
+        (click)="dismissToast()"
+      >
+        ×
+      </button>
+    </div>
+  }
+
   <header class="kitchen-header">
     <div>
       <p class="eyebrow">Operations</p>
@@ -45,12 +62,16 @@
                 <article
                   class="order-card"
                   [class.selected]="store.selectedOrderId() === order.id"
+                  [class.new-order]="newOrderIds().has(order.id)"
                   tabindex="0"
                   (click)="selectOrder(order.id)"
                   (keydown.enter)="selectOrder(order.id)"
                 >
                   <div class="order-card-header">
                     <strong>#{{ order.id.slice(0, 8) }}</strong>
+                    @if (newOrderIds().has(order.id)) {
+                      <span class="new-badge" aria-label="New order">NEW</span>
+                    }
                     <span class="table-label">Table {{ order.tableId }}</span>
                   </div>
                   <p class="order-total">{{ formatCurrency(order.total) }}</p>

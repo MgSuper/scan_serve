@@ -1,13 +1,7 @@
 import { inject, Injectable, Injector, runInInjectionContext } from '@angular/core';
-import {
-  collection,
-  Firestore,
-  onSnapshot,
-  query,
-  where,
-} from '@angular/fire/firestore';
+import { collection, Firestore, onSnapshot, query, where } from '@angular/fire/firestore';
 import { Functions, httpsCallable } from '@angular/fire/functions';
-import { catchError, from, map, Observable, of, startWith, throwError } from 'rxjs';
+import { catchError, from, map, Observable, of, throwError } from 'rxjs';
 
 import { normalizeRestaurantId } from '../../../shared/restaurant-context';
 import {
@@ -77,7 +71,6 @@ export class KitchenRepositoryImpl extends KitchenRepository {
             .filter((order): order is KitchenOrder => order !== null)
             .sort((left, right) => left.createdAt.getTime() - right.createdAt.getTime()),
         ),
-        startWith([] as readonly KitchenOrder[]),
         catchError((error: unknown) => {
           console.error('[Firestore Kitchen Stream Error]', error);
           return of([] as readonly KitchenOrder[]);
