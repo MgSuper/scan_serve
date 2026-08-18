@@ -16,7 +16,9 @@ import 'package:scan_serve/firebase_options.dart';
 Future<void> bootstrap(Environment env) async {
   final widgetsBinding = WidgetsFlutterBinding.ensureInitialized();
 
-  FlutterNativeSplash.preserve(widgetsBinding: widgetsBinding);
+  if (!kIsWeb) {
+    FlutterNativeSplash.preserve(widgetsBinding: widgetsBinding);
+  }
 
   final config = AppConfig.from(env);
 
@@ -28,7 +30,13 @@ Future<void> bootstrap(Environment env) async {
   Bloc.observer = AppBlocObserver();
 
   runApp(const App());
-  FlutterNativeSplash.remove();
+  if (!kIsWeb) {
+    try {
+      FlutterNativeSplash.remove();
+    } catch (_) {
+      // Native splash removal is best-effort on supported platforms.
+    }
+  }
 }
 
 Future<void> _initializeFirebase() async {
