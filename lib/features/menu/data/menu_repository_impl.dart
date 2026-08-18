@@ -1,4 +1,5 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:flutter/foundation.dart' show debugPrint;
 import 'package:scan_serve/core/error/repository_exception.dart';
 import 'package:scan_serve/features/menu/domain/menu_entities.dart';
 import 'package:scan_serve/features/menu/domain/repositories/menu_repository.dart';
@@ -22,16 +23,47 @@ class MenuRepositoryImpl implements MenuRepository {
   }) async {
     try {
       final snapshot = await _restaurantMenu(restaurantId).get();
+      _logSnapshot(
+        path: _menuPath(restaurantId),
+        restaurantId: restaurantId,
+        branchId: branchId,
+        documents: snapshot.docs,
+      );
       return _catalogFromDocuments(
         snapshot.docs,
         restaurantId: restaurantId,
         branchId: branchId,
+        allowEmpty: true,
       );
-    } on RepositoryException {
+    } on RepositoryException catch (error, stackTrace) {
+      _logError(
+        operation: 'getActiveMenu',
+        path: _menuPath(restaurantId),
+        restaurantId: restaurantId,
+        branchId: branchId,
+        error: error,
+        stackTrace: stackTrace,
+      );
       rethrow;
-    } on FirebaseException catch (error) {
+    } on FirebaseException catch (error, stackTrace) {
+      _logError(
+        operation: 'getActiveMenu',
+        path: _menuPath(restaurantId),
+        restaurantId: restaurantId,
+        branchId: branchId,
+        error: error,
+        stackTrace: stackTrace,
+      );
       throw RepositoryException(_firebaseMessage(error));
-    } catch (_) {
+    } catch (error, stackTrace) {
+      _logError(
+        operation: 'getActiveMenu',
+        path: _menuPath(restaurantId),
+        restaurantId: restaurantId,
+        branchId: branchId,
+        error: error,
+        stackTrace: stackTrace,
+      );
       throw RepositoryException('Unable to load the active menu.');
     }
   }
@@ -40,14 +72,47 @@ class MenuRepositoryImpl implements MenuRepository {
   Stream<MenuCatalog> watchActiveMenu({
     required String restaurantId,
     required String branchId,
-  }) => _restaurantMenu(restaurantId).snapshots().map(
-    (snapshot) => _catalogFromDocuments(
-      snapshot.docs,
-      restaurantId: restaurantId,
-      branchId: branchId,
-      allowEmpty: true,
-    ),
-  );
+  }) {
+    final path = _menuPath(restaurantId);
+    return _restaurantMenu(restaurantId)
+        .snapshots()
+        .map((snapshot) {
+          _logSnapshot(
+            path: path,
+            restaurantId: restaurantId,
+            branchId: branchId,
+            documents: snapshot.docs,
+          );
+          try {
+            return _catalogFromDocuments(
+              snapshot.docs,
+              restaurantId: restaurantId,
+              branchId: branchId,
+              allowEmpty: true,
+            );
+          } catch (error, stackTrace) {
+            _logError(
+              operation: 'watchActiveMenu mapping',
+              path: path,
+              restaurantId: restaurantId,
+              branchId: branchId,
+              error: error,
+              stackTrace: stackTrace,
+            );
+            rethrow;
+          }
+        })
+        .handleError((Object error, StackTrace stackTrace) {
+          _logError(
+            operation: 'watchActiveMenu stream',
+            path: path,
+            restaurantId: restaurantId,
+            branchId: branchId,
+            error: error,
+            stackTrace: stackTrace,
+          );
+        });
+  }
 
   MenuCatalog _catalogFromDocuments(
     List<QueryDocumentSnapshot<Map<String, dynamic>>> documents, {
@@ -144,7 +209,11 @@ class MenuRepositoryImpl implements MenuRepository {
     final availability = data['isAvailable'];
     final available = availability is bool
         ? availability
-        : data['availability'] == 'in_stock' || data['status'] == 'in_stock';
+        : switch (data['availability'] ?? data['status']) {
+            'out_of_stock' => false,
+            'in_stock' => true,
+            _ => true,
+          };
     if (!available) return null;
 
     final category =
@@ -206,6 +275,39 @@ class MenuRepositoryImpl implements MenuRepository {
     return normalized
         .replaceFirst(RegExp(r'^-+'), '')
         .replaceFirst(RegExp(r'-+$'), '');
+  }
+
+  String _menuPath(String restaurantId) => 'restaurants/$restaurantId/menu';
+
+  void _logSnapshot({
+    required String path,
+    required String restaurantId,
+    required String branchId,
+    required List<QueryDocumentSnapshot<Map<String, dynamic>>> documents,
+  }) {
+    final documentPaths = documents
+        .map((document) => document.reference.path)
+        .join(', ');
+    debugPrint(
+      '[MenuRepository] snapshot path=$path '
+      'restaurantId=$restaurantId branchId=$branchId '
+      'documentCount=${documents.length} documentPaths=[$documentPaths]',
+    );
+  }
+
+  void _logError({
+    required String operation,
+    required String path,
+    required String restaurantId,
+    required String branchId,
+    required Object error,
+    required StackTrace stackTrace,
+  }) {
+    debugPrint(
+      '[MenuRepository] $operation failed '
+      'path=$path restaurantId=$restaurantId branchId=$branchId '
+      'error=$error\n$stackTrace',
+    );
   }
 
   String _firebaseMessage(FirebaseException error) {
