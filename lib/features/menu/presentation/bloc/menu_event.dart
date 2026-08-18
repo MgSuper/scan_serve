@@ -1,4 +1,5 @@
 import 'package:equatable/equatable.dart';
+import 'package:scan_serve/features/menu/domain/menu_entities.dart';
 
 sealed class MenuEvent extends Equatable {
   const MenuEvent();
@@ -25,4 +26,22 @@ final class RefreshMenu extends MenuEvent {
 
   @override
   List<Object?> get props => <Object?>[restaurantId, branchId];
+}
+
+final class MenuStreamUpdated extends MenuEvent {
+  const MenuStreamUpdated(this.catalog);
+
+  final MenuCatalog catalog;
+
+  @override
+  List<Object?> get props => <Object?>[catalog];
+}
+
+final class MenuStreamFailed extends MenuEvent {
+  const MenuStreamFailed(this.error);
+
+  final Object error;
+
+  @override
+  List<Object?> get props => <Object?>[error.toString()];
 }

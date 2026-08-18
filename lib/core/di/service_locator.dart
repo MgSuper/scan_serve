@@ -18,6 +18,7 @@ import 'package:scan_serve/features/customer/domain/customer_repository.dart';
 import 'package:scan_serve/features/menu/data/menu_repository_impl.dart';
 import 'package:scan_serve/features/menu/domain/repositories/menu_repository.dart';
 import 'package:scan_serve/features/menu/domain/use_cases/get_active_menu.dart';
+import 'package:scan_serve/features/menu/domain/use_cases/watch_active_menu.dart';
 import 'package:scan_serve/features/menu/presentation/bloc/menu_bloc.dart';
 
 final sl = GetIt.instance;
@@ -65,6 +66,11 @@ Future<void> setupLocator(AppConfig config) async {
       () => GetActiveMenu(sl<MenuRepository>()),
     );
   }
+  if (!sl.isRegistered<WatchActiveMenu>()) {
+    sl.registerLazySingleton<WatchActiveMenu>(
+      () => WatchActiveMenu(sl<MenuRepository>()),
+    );
+  }
   if (!sl.isRegistered<AddToCart>()) {
     sl.registerLazySingleton<AddToCart>(() => AddToCart(sl<CartRepository>()));
   }
@@ -80,7 +86,10 @@ Future<void> setupLocator(AppConfig config) async {
   }
   if (!sl.isRegistered<MenuBloc>()) {
     sl.registerFactory<MenuBloc>(
-      () => MenuBloc(getActiveMenu: sl<GetActiveMenu>()),
+      () => MenuBloc(
+        getActiveMenu: sl<GetActiveMenu>(),
+        watchActiveMenu: sl<WatchActiveMenu>(),
+      ),
     );
   }
   if (!sl.isRegistered<CartBloc>()) {

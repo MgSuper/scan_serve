@@ -5,4 +5,9 @@ abstract interface class MenuRepository {
     required String restaurantId,
     required String branchId,
   });
+
+  Stream<MenuCatalog> watchActiveMenu({
+    required String restaurantId,
+    required String branchId,
+  });
 }

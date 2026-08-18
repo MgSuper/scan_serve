@@ -68,7 +68,13 @@ class AppRouter {
   }
 
   static String _query(GoRouterState state, String key) {
-    return state.uri.queryParameters[key] ?? '';
+    final value = state.uri.queryParameters[key]?.trim();
+    if (value != null && value.isNotEmpty) return value;
+    return switch (key) {
+      'restaurantId' => 'scanserve-demo',
+      'branchId' => 'main-branch',
+      _ => '',
+    };
   }
 
   static Cart _cartFromState(GoRouterState state) {

@@ -237,22 +237,41 @@ class FirestoreCustomerRepository implements CustomerRepository {
     QueryDocumentSnapshot<Map<String, dynamic>> document,
   ) {
     final data = document.data();
-    if (data['branchId'] != null && data['branchId'] != branchId) return null;
-    final name = data['name'];
+    final documentRestaurantId = _optionalString(data['restaurantId']);
+    if (documentRestaurantId != null && documentRestaurantId != restaurantId) {
+      return null;
+    }
+    final documentBranchId = _optionalString(data['branchId']);
+    if (documentBranchId != null && documentBranchId != branchId) return null;
+    if (data['archived'] == true || data['isArchived'] == true) return null;
+
+    final name = _optionalString(data['name']);
     final price = data['price'];
-    if (name is! String || price is! num) return null;
+    if (name == null || price is! num || !price.isFinite || price < 0) {
+      return null;
+    }
+    final isAvailable = data['isAvailable'];
+    final available = isAvailable is bool
+        ? isAvailable
+        : data['availability'] == 'in_stock' || data['status'] == 'in_stock';
+    if (!available) return null;
+
     return MenuItem(
-      id: data['id'] as String? ?? document.id,
+      id: _optionalString(data['id']) ?? document.id,
       category:
-          data['category'] as String? ??
-          data['categoryId'] as String? ??
+          _optionalString(data['category']) ??
+          _optionalString(data['categoryId']) ??
           'Menu',
       name: name,
-      description: data['description'] as String? ?? '',
+      description: _optionalString(data['description']) ?? '',
       price: price.toInt(),
-      available:
-          data['isAvailable'] as bool? ?? data['status'] != 'out_of_stock',
+      available: true,
     );
+  }
+
+  String? _optionalString(Object? value) {
+    if (value is String && value.trim().isNotEmpty) return value.trim();
+    return null;
   }
 
   CustomerOrder? _orderFromDocument(
