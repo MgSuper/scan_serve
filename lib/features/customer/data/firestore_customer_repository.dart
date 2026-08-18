@@ -104,7 +104,14 @@ class FirestoreCustomerRepository implements CustomerRepository {
   Stream<CustomerOrder?> getActiveOrder() async* {
     try {
       await for (final snapshot
-          in _orders.where('tableId', isEqualTo: tableId).snapshots()) {
+          in _orders
+              .where('tableId', isEqualTo: tableId)
+              .where('customerSessionId', isEqualTo: customerSessionId)
+              .where(
+                'status',
+                whereIn: const ['PENDING', 'ACCEPTED', 'PREPARING', 'READY'],
+              )
+              .snapshots()) {
         final orders = snapshot.docs
             .map(_orderFromDocument)
             .whereType<CustomerOrder>()

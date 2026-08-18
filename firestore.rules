@@ -6,51 +6,132 @@ service cloud.firestore {
       return request.auth != null;
     }
 
-    // Customers may browse menu data; authenticated staff may manage it.
-    match /restaurants/{restaurantId}/menu/{menuItemId} {
+    function isStaff() {
+      return isAuthenticated();
+    }
+
+    function hasRestaurantId(data, restaurantId) {
+      return data.get('restaurantId', '') == restaurantId;
+    }
+
+    function isActiveMenuItem() {
+      return resource.data.get('archived', false) != true
+        && resource.data.get('isArchived', false) != true
+        && resource.data.get('isAvailable', true) == true
+        && resource.data.get(
+          'availability',
+          resource.data.get('status', 'in_stock')
+        ) == 'in_stock';
+    }
+
+    function isValidCustomerOrderCreate(restaurantId) {
+      return request.resource.data.get('restaurantId', '') == restaurantId
+        && request.resource.data.get('status', '') == 'PENDING'
+        && request.resource.data.get('customerSessionId', '') is string
+        && request.resource.data.get('tableId', '') is string
+        && request.resource.data.get('items', []) is list
+        && request.resource.data.get('isArchived', false) == false
+        && request.resource.data.get('deletedAt', null) == null;
+    }
+
+    function isActiveCustomerOrder() {
+      return resource.data.get('status', '') in [
+          'PENDING',
+          'ACCEPTED',
+          'PREPARING',
+          'READY'
+        ]
+        && resource.data.get('customerSessionId', '') is string
+        && resource.data.get('customerSessionId', '') != '';
+    }
+
+    // Restaurant metadata is public so QR/table sessions can resolve tenant
+    // context before authentication. Staff retain full management rights.
+    match /restaurants/{restaurantId} {
       allow read: if true;
-      allow write: if isAuthenticated();
+      allow write: if isStaff();
     }
 
-    // Customer order creation remains available to the ordering flow. Reads and
-    // subsequent mutations are restricted to authenticated staff sessions.
+    // Angular management and Flutter customer browsing share this path.
+    // Customers can read active menu items; staff can manage every item.
+    match /restaurants/{restaurantId}/menu/{menuItemId} {
+      // Menu documents contain public catalog data. Flutter and Angular filter
+      // availability/archival state in their mappers and views.
+      allow read: if true;
+      allow create, update, delete: if isStaff();
+    }
+
+    // Customers may create an order envelope and read active order status.
+    // The Flutter query must constrain status to the active status set. The
+    // current legacy path does not include customerSessionId in its URL, so
+    // the active-session predicate is enforced from the stored order fields.
     match /restaurants/{restaurantId}/orders/{orderId} {
-      allow create: if true;
-      allow read, update, delete: if isAuthenticated();
+      allow create: if isValidCustomerOrderCreate(restaurantId);
+      allow get, list: if isStaff() || isActiveCustomerOrder();
+      allow update, delete: if isStaff();
     }
 
-    // Other restaurant-scoped operational documents are staff-only.
+    // Customer session and cart records are backend-managed operational data.
+    // Staff may inspect and manage them; unauthenticated clients must use the
+    // callable/order endpoints rather than mutating these legacy records.
+    match /customerSessions/{sessionId} {
+      allow read, write: if isStaff();
+    }
+
+    match /carts/{cartId} {
+      allow read, write: if isStaff();
+    }
+
+    match /orderItems/{orderItemId} {
+      allow read, write: if isStaff();
+    }
+
+    match /orderRequests/{requestId} {
+      allow read, write: if isStaff();
+    }
+
+    match /restaurants/{restaurantId}/waiterRequests/{requestId} {
+      allow create: if request.resource.data.get('restaurantId', '') == restaurantId
+        && request.resource.data.get('tableId', '') is string
+        && request.resource.data.get('customerSessionId', '') is string
+        && request.resource.data.get('status', '') == 'OPEN';
+      allow read, update, delete: if isStaff();
+    }
+
+    // All other restaurant-scoped operational documents are staff-only.
     match /restaurants/{restaurantId}/{document=**} {
-      allow read, write: if isAuthenticated();
+      allow read, write: if isStaff();
     }
 
-    // Backend status updates and legacy dashboard reads use the top-level orders path.
+    // Legacy top-level order documents are used by backend status processing
+    // and the Angular kitchen compatibility path. They remain staff-only.
     match /orders/{orderId} {
-      allow read, write: if isAuthenticated();
+      allow read, write: if isStaff();
     }
 
-    // Preserve public catalog reads for any legacy top-level catalog collections.
+    // Legacy catalog paths remain readable only where they were historically
+    // public; writes and all management operations require staff auth.
     match /menus/{menuId} {
       allow read: if true;
-      allow write: if isAuthenticated();
+      allow write: if isStaff();
     }
 
     match /categories/{categoryId} {
       allow read: if true;
-      allow write: if isAuthenticated();
+      allow write: if isStaff();
     }
 
     match /menuItems/{menuItemId} {
       allow read: if true;
-      allow write: if isAuthenticated();
+      allow write: if isStaff();
     }
 
     match /staff/{staffId} {
-      allow read, write: if isAuthenticated();
+      allow read, write: if isStaff();
     }
 
     match /roles/{roleId} {
-      allow read, write: if isAuthenticated();
+      allow read, write: if isStaff();
     }
 
     match /{document=**} {
