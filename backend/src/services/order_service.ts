@@ -67,10 +67,15 @@ export class OrderService {
         }
         return previous.summary as OrderSummary;
       }
+      let session: Record<string, unknown>;
       if (!sessionSnapshot.exists) {
-        throw new ApplicationError('NOT_FOUND', 'Customer session was not found.');
+        if (!this.isDevelopmentSessionFallbackEnabled()) {
+          throw new ApplicationError('NOT_FOUND', 'Customer session was not found.');
+        }
+        session = this.createDevelopmentSession(input, now);
+      } else {
+        session = requireRecord(sessionSnapshot.data(), 'Customer session is invalid.');
       }
-      const session = requireRecord(sessionSnapshot.data(), 'Customer session is invalid.');
       if (
         session.restaurantId !== input.restaurantId ||
         session.status !== 'ACTIVE' ||
@@ -102,7 +107,19 @@ export class OrderService {
       }
 
       const lines = cartItems.map((item) => this.parseCartItem(item));
-      return this.createOrderInTransaction(transaction, requestId, input, session, lines, now, cartRef);
+      const sessionToCreate = sessionSnapshot.exists
+        ? undefined
+        : { ref: sessionRef, data: session };
+      return this.createOrderInTransaction(
+        transaction,
+        requestId,
+        input,
+        session,
+        lines,
+        now,
+        cartRef,
+        sessionToCreate,
+      );
     });
     logger.info('submitOrder completed', {
       requestId,
@@ -119,7 +136,11 @@ export class OrderService {
     const now = Timestamp.now();
     const result = await this.firestore.runTransaction(async (transaction) => {
       const idempotencyRef = this.firestore.collection('orderRequests').doc(requestId);
-      const requestSnapshot = await transaction.get(idempotencyRef);
+      const sessionRef = this.firestore.collection('customerSessions').doc(input.customerSessionId);
+      const [requestSnapshot, sessionSnapshot] = await Promise.all([
+        transaction.get(idempotencyRef),
+        transaction.get(sessionRef),
+      ]);
       if (requestSnapshot.exists) {
         const previous = requireRecord(requestSnapshot.data(), 'Stored request is invalid.');
         if (previous.restaurantId !== input.restaurantId) {
@@ -128,19 +149,47 @@ export class OrderService {
         return previous.summary as OrderSummary;
       }
 
+      let session: Record<string, unknown>;
+      if (!sessionSnapshot.exists) {
+        if (!this.isDevelopmentSessionFallbackEnabled()) {
+          throw new ApplicationError('NOT_FOUND', 'Customer session was not found.');
+        }
+        session = this.createDevelopmentSession(input, now);
+      } else {
+        session = requireRecord(sessionSnapshot.data(), 'Customer session is invalid.');
+      }
+      if (
+        session.restaurantId !== input.restaurantId ||
+        session.status !== 'ACTIVE' ||
+        session.isArchived === true ||
+        session.deletedAt
+      ) {
+        throw new ApplicationError('UNAUTHORIZED', 'Customer session is not active for this restaurant.');
+      }
+      const expiresAt = session.expiresAt as Timestamp | undefined;
+      if (expiresAt && expiresAt.toMillis() <= now.toMillis()) {
+        throw new ApplicationError('VALIDATION_FAILED', 'Customer session has expired.');
+      }
+
       const lines = input.items.map((item) => ({
         menuItemId: item.menuItemId,
         quantity: item.quantity,
         ...(item.note === undefined ? {} : { note: item.note }),
         ...(item.modifiers === undefined ? {} : { modifiers: item.modifiers }),
       }));
-      const session = {
-        restaurantId: input.restaurantId,
-        branchId: input.branchId ?? 'main-branch',
-        tableId: input.tableId ?? 'table-12',
-        tableSessionId: input.tableSessionId ?? 'active-table-session',
-      };
-      return this.createOrderInTransaction(transaction, requestId, input, session, lines, now);
+      const sessionToCreate = sessionSnapshot.exists
+        ? undefined
+        : { ref: sessionRef, data: session };
+      return this.createOrderInTransaction(
+        transaction,
+        requestId,
+        input,
+        session,
+        lines,
+        now,
+        undefined,
+        sessionToCreate,
+      );
     });
     logger.info('submitOrder completed', {
       requestId,
@@ -158,6 +207,10 @@ export class OrderService {
     lines: CartItemRecord[],
     now: Timestamp,
     cartRef?: FirebaseFirestore.DocumentReference,
+    sessionToCreate?: {
+      ref: FirebaseFirestore.DocumentReference;
+      data: Record<string, unknown>;
+    },
   ): Promise<OrderSummary> {
     const menuRefs = lines.map((line) => ({
       legacy: this.firestore.collection('menuItems').doc(line.menuItemId),
@@ -223,7 +276,7 @@ export class OrderService {
           restaurantId: input.restaurantId,
           branchId: session.branchId,
           menuItemId: snapshot.id,
-          categoryId: menu.categoryId,
+          categoryId: typeof menu.categoryId === 'string' ? menu.categoryId : null,
           name: menu.name,
           unitPrice,
           quantity: line.quantity,
@@ -276,6 +329,9 @@ export class OrderService {
       .doc(input.restaurantId)
       .collection('orders')
       .doc(orderId);
+    if (sessionToCreate) {
+      transaction.create(sessionToCreate.ref, sessionToCreate.data);
+    }
     transaction.create(orderRef, orderData);
     transaction.create(nestedOrderRef, orderData);
     orderItems.forEach((item) => transaction.create(item.ref, item.data));
@@ -292,6 +348,31 @@ export class OrderService {
       expiresAt: Timestamp.fromMillis(now.toMillis() + 24 * 60 * 60 * 1000),
     });
     return summary;
+  }
+
+  private isDevelopmentSessionFallbackEnabled(): boolean {
+    return Boolean(process.env.FIRESTORE_EMULATOR_HOST || process.env.FUNCTIONS_EMULATOR === 'true');
+  }
+
+  private createDevelopmentSession(
+    input: SubmitOrderPayload,
+    now: Timestamp,
+  ): Record<string, unknown> {
+    return {
+      id: input.customerSessionId,
+      customerSessionId: input.customerSessionId,
+      restaurantId: input.restaurantId,
+      branchId: input.branchId ?? 'main-branch',
+      tableId: input.tableId ?? 'table-12',
+      tableSessionId: input.tableSessionId ?? 'active-table-session',
+      status: 'ACTIVE',
+      isActive: true,
+      isArchived: false,
+      deletedAt: null,
+      createdAt: now,
+      updatedAt: now,
+      expiresAt: Timestamp.fromMillis(now.toMillis() + 24 * 60 * 60 * 1000),
+    };
   }
 
   private parseCartItem(value: unknown): CartItemRecord {

@@ -83,6 +83,7 @@ class FirestoreCustomerRepository implements CustomerRepository {
   @override
   Future<List<MenuItem>> getActiveMenu() async {
     try {
+      await _ensureCustomerSession();
       final snapshot = await _menu.get();
       if (snapshot.docs.isEmpty) {
         return _seedDefaultMenu();
@@ -147,6 +148,7 @@ class FirestoreCustomerRepository implements CustomerRepository {
     final cartId =
         'cart_${customerSessionId.trim().isEmpty ? tableSessionId : customerSessionId}';
     try {
+      await _ensureCustomerSession();
       final callable = _functions.httpsCallable('submitOrder');
       final result = await callable.call(<String, Object?>{
         'requestId': requestId,
@@ -200,6 +202,28 @@ class FirestoreCustomerRepository implements CustomerRepository {
         _firebaseMessage(error, fallback: 'Unable to submit the order.'),
       );
     }
+  }
+
+  Future<void> _ensureCustomerSession() async {
+    final sessionReference = _firestore
+        .collection('customerSessions')
+        .doc(customerSessionId);
+    final now = DateTime.now().toUtc();
+    await sessionReference.set(<String, Object?>{
+      'id': customerSessionId,
+      'customerSessionId': customerSessionId,
+      'restaurantId': restaurantId,
+      'branchId': branchId,
+      'tableId': tableId,
+      'tableSessionId': tableSessionId,
+      'status': 'ACTIVE',
+      'isActive': true,
+      'isArchived': false,
+      'deletedAt': null,
+      'createdAt': FieldValue.serverTimestamp(),
+      'updatedAt': FieldValue.serverTimestamp(),
+      'expiresAt': Timestamp.fromDate(now.add(const Duration(hours: 24))),
+    }, SetOptions(merge: true));
   }
 
   Map<String, dynamic> _record(Object? value) {

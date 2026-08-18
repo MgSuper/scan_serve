@@ -18,7 +18,10 @@ export const submitOrder = onCall(async (request): Promise<ApiResponse<unknown>>
       logger.warn('submitOrder rejected', { requestId, code: error.code });
       return failure(requestId, error.toApiError());
     }
-    logger.error('submitOrder failed', { requestId, error });
+    const details = error instanceof Error
+      ? { name: error.name, message: error.message, stack: error.stack }
+      : { value: String(error) };
+    logger.error('submitOrder failed', { requestId, error: details });
     return failure(requestId, { code: 'INTERNAL_ERROR', message: 'Unable to submit order.' });
   }
 });
