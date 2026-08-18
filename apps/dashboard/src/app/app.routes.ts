@@ -25,11 +25,25 @@ export const routes: Routes = [
       ),
   },
   {
-    path: 'menu/:restaurantId',
-    loadComponent: () =>
-      import('./features/menu/presentation/components/menu-management.component').then(
-        ({ MenuManagementComponent }) => MenuManagementComponent,
-      ),
+    path: 'menu',
+    canActivate: [authGuard],
+    canActivateChild: [authGuard],
+    children: [
+      {
+        path: '',
+        loadComponent: () =>
+          import('./features/menu/presentation/components/menu-management.component').then(
+            ({ MenuManagementComponent }) => MenuManagementComponent,
+          ),
+      },
+      {
+        path: ':restaurantId',
+        loadComponent: () =>
+          import('./features/menu/presentation/components/menu-management.component').then(
+            ({ MenuManagementComponent }) => MenuManagementComponent,
+          ),
+      },
+    ],
   },
   {
     path: '**',
