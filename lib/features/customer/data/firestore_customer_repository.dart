@@ -5,16 +5,21 @@ import '../domain/customer_repository.dart';
 import '../domain/models.dart';
 
 class FirestoreCustomerRepository implements CustomerRepository {
+  static const defaultRestaurantId = 'scanserve-demo';
+  static const defaultBranchId = 'main-branch';
+
   FirestoreCustomerRepository({
     required FirebaseFirestore firestore,
     required FirebaseFunctions functions,
-    required this.restaurantId,
+    String? restaurantId,
     required this.tableId,
-    this.branchId = 'main-branch',
+    String? branchId,
     this.tableSessionId = 'active-table-session',
     this.customerSessionId = 'active-customer-session',
   }) : _firestore = firestore,
-       _functions = functions;
+       _functions = functions,
+       restaurantId = _normalizeIdentifier(restaurantId, defaultRestaurantId),
+       branchId = _normalizeIdentifier(branchId, defaultBranchId);
 
   final FirebaseFirestore _firestore;
   final FirebaseFunctions _functions;
@@ -23,6 +28,11 @@ class FirestoreCustomerRepository implements CustomerRepository {
   final String tableId;
   final String tableSessionId;
   final String customerSessionId;
+
+  static String _normalizeIdentifier(String? value, String fallback) {
+    final normalized = value?.trim();
+    return normalized == null || normalized.isEmpty ? fallback : normalized;
+  }
 
   static const _defaultMenu = <MenuItem>[
     MenuItem(
@@ -91,33 +101,33 @@ class FirestoreCustomerRepository implements CustomerRepository {
   }
 
   @override
-  Stream<CustomerOrder?> getActiveOrder() {
-    return _orders
-        .where('tableId', isEqualTo: tableId)
-        .snapshots()
-        .map((snapshot) {
-          final orders = snapshot.docs
-              .map(_orderFromDocument)
-              .whereType<CustomerOrder>()
-              .where((order) => _isActive(order.status))
-              .toList(growable: false);
-          if (orders.isEmpty) return null;
-          orders.sort(
-            (left, right) => right.createdAt.compareTo(left.createdAt),
-          );
-          return orders.first;
-        })
-        .handleError((Object error) {
-          if (error is FirebaseException) {
-            throw StateError(
-              _firebaseMessage(
-                error,
-                fallback: 'Unable to sync the active order.',
-              ),
-            );
-          }
-          throw StateError('Unable to sync the active order.');
-        });
+  Stream<CustomerOrder?> getActiveOrder() async* {
+    try {
+      await for (final snapshot
+          in _orders.where('tableId', isEqualTo: tableId).snapshots()) {
+        final orders = snapshot.docs
+            .map(_orderFromDocument)
+            .whereType<CustomerOrder>()
+            .where((order) => _isActive(order.status))
+            .toList(growable: false);
+        if (orders.isEmpty) {
+          yield null;
+          continue;
+        }
+        orders.sort((left, right) => right.createdAt.compareTo(left.createdAt));
+        yield orders.first;
+      }
+    } on FirebaseException catch (error) {
+      if (error.code == 'permission-denied' || error.code == 'unavailable') {
+        yield null;
+        return;
+      }
+      throw StateError(
+        _firebaseMessage(error, fallback: 'Unable to sync the active order.'),
+      );
+    } catch (_) {
+      yield null;
+    }
   }
 
   @override

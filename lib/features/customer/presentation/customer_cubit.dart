@@ -47,15 +47,20 @@ class CustomerCubit extends Cubit<CustomerState> {
 
   Future<void> load() async {
     try {
-      final results = await Future.wait([
-        _repository.getActiveMenu(),
-        _repository.getActiveOrder().first,
-      ]);
+      final menu = await _repository.getActiveMenu();
+      CustomerOrder? activeOrder;
+      try {
+        activeOrder = await _repository.getActiveOrder().first;
+      } catch (_) {
+        // An unavailable or unauthorized order stream must not block menu access.
+        activeOrder = null;
+      }
+
       emit(
         state.copyWith(
           loading: false,
-          menu: List.unmodifiable(results[0] as List<MenuItem>),
-          order: results[1] as CustomerOrder?,
+          menu: List.unmodifiable(menu),
+          order: activeOrder,
           clearMessage: true,
         ),
       );
@@ -114,10 +119,20 @@ class CustomerCubit extends Cubit<CustomerState> {
 
   void _watchActiveOrder() {
     _activeOrderSubscription?.cancel();
-    _activeOrderSubscription = _repository.getActiveOrder().listen((order) {
-      if (isClosed || order == state.order) return;
-      emit(state.copyWith(order: order, clearOrder: order == null));
-    }, onError: (_) {});
+    try {
+      _activeOrderSubscription = _repository.getActiveOrder().listen(
+        (order) {
+          if (isClosed || order == state.order) return;
+          emit(state.copyWith(order: order, clearOrder: order == null));
+        },
+        onError: (_) {
+          // The order stream is optional; preserve the loaded menu on errors.
+        },
+      );
+    } catch (_) {
+      // A synchronous stream setup failure is also non-fatal to menu loading.
+      _activeOrderSubscription = null;
+    }
   }
 
   @override

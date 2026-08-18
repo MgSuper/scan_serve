@@ -32,8 +32,29 @@ class _Repository implements CustomerRepository {
       );
 }
 
+class _OrderPermissionRepository extends _Repository {
+  @override
+  Stream<CustomerOrder?> getActiveOrder() => Stream<CustomerOrder?>.error(
+    StateError(
+      'Bad state: You do not have permission to access this restaurant.',
+    ),
+  );
+}
+
 void main() {
   group('CustomerCubit', () {
+    blocTest<CustomerCubit, CustomerState>(
+      'loads the menu when the active order stream is unauthorized',
+      build: () => CustomerCubit(_OrderPermissionRepository()),
+      act: (cubit) => cubit.load(),
+      expect: () => [
+        isA<CustomerState>()
+            .having((state) => state.loading, 'loading', false)
+            .having((state) => state.menu, 'menu', hasLength(1))
+            .having((state) => state.order, 'order', isNull)
+            .having((state) => state.message, 'message', isNull),
+      ],
+    );
     blocTest<CustomerCubit, CustomerState>(
       'loads the active menu',
       build: () => CustomerCubit(_Repository()),
