@@ -227,7 +227,8 @@ class MenuRepositoryImpl implements MenuRepository {
     final resolvedBranchId = documentBranchId ?? branchId;
 
     return MenuItem(
-      id: _optionalString(data['id']) ?? document.id,
+      // Use the immutable Firestore document ID for downstream order lookups.
+      id: document.id,
       restaurantId: documentRestaurantId ?? restaurantId,
       branchId: resolvedBranchId,
       menuId: menuId,

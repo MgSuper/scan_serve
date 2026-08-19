@@ -331,7 +331,9 @@ class FirestoreCustomerRepository implements CustomerRepository {
     if (!available) return null;
 
     return MenuItem(
-      id: _optionalString(data['id']) ?? document.id,
+      // The Firestore document ID is the canonical identifier sent to submitOrder.
+      // The legacy `id` field may be stale or differ from the document path.
+      id: document.id,
       category:
           _optionalString(data['category']) ??
           _optionalString(data['categoryId']) ??
