@@ -295,6 +295,11 @@ export class OrderService {
       developmentFallbackEnabled,
     });
 
+    const sessionBranchId =
+      typeof session.branchId === 'string' && session.branchId.trim().length > 0
+        ? session.branchId
+        : 'main-branch';
+
     for (let index = 0; index < menuSnapshots.length; index += 1) {
       const { legacySnapshot, nestedSnapshot, nested } = menuSnapshots[index];
       // The nested restaurant menu is the canonical source used by Flutter
@@ -331,12 +336,13 @@ export class OrderService {
           : menu.restaurantId === input.restaurantId;
       const branchMatches =
         typeof menu.branchId !== 'string'
-          ? developmentFallbackEnabled
-          : menu.branchId === session.branchId;
+          ? true
+          : menu.branchId === sessionBranchId;
       const availabilityValid =
-        menu.isAvailable === undefined
-          ? developmentFallbackEnabled
-          : menu.isAvailable === true;
+        menu.isAvailable === true ||
+        menu.status === 'in_stock' ||
+        menu.availability === 'in_stock' ||
+        (developmentFallbackEnabled && menu.isAvailable === undefined);
       if (
         !restaurantMatches ||
         !branchMatches ||
@@ -351,7 +357,7 @@ export class OrderService {
           branchMatches,
           availabilityValid,
           restaurantId: menu.restaurantId,
-          menuBranchId: menu.branchId,
+          menuBranchId: menu.branchId ?? sessionBranchId,
           isAvailable: menu.isAvailable,
           availability: menu.availability,
           status: menu.status,
