@@ -37,7 +37,14 @@ export class OrderService {
 
   public async submitOrder(requestId: string, input: SubmitOrderPayload): Promise<OrderSummary> {
     const resolvedCartId = input.cartId ?? `cart_${requestId}`;
-    const resolvedInput = { ...input, cartId: resolvedCartId };
+    const resolvedCustomerSessionId = this.resolveCustomerSessionId(
+      input.customerSessionId,
+    );
+    const resolvedInput = {
+      ...input,
+      customerSessionId: resolvedCustomerSessionId,
+      cartId: resolvedCartId,
+    };
     const items = resolvedInput.items;
     if (items?.length) {
       return this.submitInlineOrder(requestId, { ...resolvedInput, items });
@@ -52,7 +59,7 @@ export class OrderService {
     const now = Timestamp.now();
     const cartId = input.cartId;
     const result = await this.firestore.runTransaction(async (transaction) => {
-      const sessionRef = this.firestore.collection('customerSessions').doc(input.customerSessionId);
+      const sessionRef = this.customerSessionReference(input.customerSessionId);
       const cartRef = this.firestore.collection('carts').doc(cartId);
       const idempotencyRef = this.firestore.collection('orderRequests').doc(requestId);
       const [requestSnapshot, sessionSnapshot, cartSnapshot] = await Promise.all([
@@ -169,7 +176,7 @@ export class OrderService {
     const now = Timestamp.now();
     const result = await this.firestore.runTransaction(async (transaction) => {
       const idempotencyRef = this.firestore.collection('orderRequests').doc(requestId);
-      const sessionRef = this.firestore.collection('customerSessions').doc(input.customerSessionId);
+      const sessionRef = this.customerSessionReference(input.customerSessionId);
       const cartRef = this.firestore.collection('carts').doc(input.cartId ?? `cart_${input.customerSessionId}`);
       const [requestSnapshot, sessionSnapshot, cartSnapshot] = await Promise.all([
         transaction.get(idempotencyRef),
@@ -503,6 +510,16 @@ export class OrderService {
       expiresAt: Timestamp.fromMillis(now.toMillis() + 24 * 60 * 60 * 1000),
     });
     return summary;
+  }
+
+  private resolveCustomerSessionId(customerSessionId: string): string {
+    const normalized = customerSessionId.trim();
+    return normalized || 'active-customer-session';
+  }
+
+  private customerSessionReference(customerSessionId: string): FirebaseFirestore.DocumentReference {
+    const resolvedCustomerSessionId = this.resolveCustomerSessionId(customerSessionId);
+    return this.firestore.collection('customerSessions').doc(resolvedCustomerSessionId);
   }
 
   private isDevelopmentSessionFallbackEnabled(): boolean {
