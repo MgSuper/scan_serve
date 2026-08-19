@@ -258,22 +258,18 @@ export class OrderService {
       data: Record<string, unknown>;
     },
   ): Promise<OrderSummary> {
-    const menuRefs = lines.map((line) => ({
-      legacy: this.firestore.collection('menuItems').doc(line.menuItemId),
-      nested: this.firestore
+    const menuRefs = lines.map((line) =>
+      this.firestore
         .collection('restaurants')
         .doc(input.restaurantId)
         .collection('menu')
         .doc(line.menuItemId),
-    }));
+    );
     const menuSnapshots = await Promise.all(
-      menuRefs.map(async ({ legacy, nested }) => {
-        const [legacySnapshot, nestedSnapshot] = await Promise.all([
-          transaction.get(legacy),
-          transaction.get(nested),
-        ]);
-        return { legacySnapshot, nestedSnapshot, nested };
-      }),
+      menuRefs.map(async (nested) => ({
+        nestedSnapshot: await transaction.get(nested),
+        nested,
+      })),
     );
     const orderId = this.firestore.collection('orders').doc().id;
     const orderItems: Array<{
@@ -291,7 +287,7 @@ export class OrderService {
       restaurantId: input.restaurantId,
       branchId: session.branchId,
       menuItemIds: lines.map((line) => line.menuItemId),
-      nestedMenuPaths: menuRefs.map(({ nested }) => nested.path),
+      nestedMenuPaths: menuRefs.map((reference) => reference.path),
       developmentFallbackEnabled,
     });
 
@@ -301,18 +297,16 @@ export class OrderService {
         : 'main-branch';
 
     for (let index = 0; index < menuSnapshots.length; index += 1) {
-      const { legacySnapshot, nestedSnapshot, nested } = menuSnapshots[index];
+      const { nestedSnapshot, nested } = menuSnapshots[index];
       // The nested restaurant menu is the canonical source used by Flutter
-      // and Angular. Only fall back to the legacy top-level record when the
-      // restaurant-scoped document is absent.
-      const snapshot = nestedSnapshot.exists ? nestedSnapshot : legacySnapshot;
+      // and Angular. Legacy top-level menu records are intentionally ignored
+      // so stale data cannot reject a valid restaurant-scoped item.
+      const snapshot = nestedSnapshot;
       const line = lines[index];
       logger.info('Order menu item snapshot', {
         requestId,
         menuItemId: line.menuItemId,
-        legacyPath: legacySnapshot.ref.path,
         nestedPath: nested.path,
-        legacyExists: legacySnapshot.exists,
         nestedExists: nestedSnapshot.exists,
         selectedPath: snapshot.exists ? snapshot.ref.path : nested.path,
       });
