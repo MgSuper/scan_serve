@@ -35,7 +35,7 @@ export const appConfig: ApplicationConfig = {
     }),
     provideFunctions(() => {
       const functions = getFunctions();
-      if (location.hostname === 'localhost') {
+      if (location.hostname === 'localhost' || location.hostname === '127.0.0.1') {
         connectFunctionsEmulator(functions, 'localhost', 5001);
       }
       return functions;

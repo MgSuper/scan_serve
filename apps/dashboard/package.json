@@ -4,7 +4,8 @@
   "scripts": {
     "ng": "ng",
     "seed:auth": "node scripts/seed-auth-emulator.mjs",
-    "prestart": "npm run seed:auth",
+    "seed:firestore": "node ../../backend/scripts/seed-emulator-menu.cjs",
+    "prestart": "npm run seed:auth && npm run seed:firestore",
     "start": "ng serve",
     "build": "ng build",
     "watch": "ng build --watch --configuration development",
