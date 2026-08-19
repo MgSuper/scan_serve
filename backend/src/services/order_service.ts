@@ -36,10 +36,11 @@ export class OrderService {
   public constructor(private readonly firestore: Firestore) {}
 
   public async submitOrder(requestId: string, input: SubmitOrderPayload): Promise<OrderSummary> {
-    const resolvedCartId = input.cartId ?? `cart_${requestId}`;
     const resolvedCustomerSessionId = this.resolveCustomerSessionId(
       input.customerSessionId,
     );
+    const resolvedCartId =
+      input.cartId?.trim() || this.canonicalCartId(resolvedCustomerSessionId);
     const resolvedInput = {
       ...input,
       customerSessionId: resolvedCustomerSessionId,
@@ -57,16 +58,23 @@ export class OrderService {
     input: SubmitOrderPayload & { cartId: string },
   ): Promise<OrderSummary> {
     const now = Timestamp.now();
-    const cartId = input.cartId;
     const result = await this.firestore.runTransaction(async (transaction) => {
       const sessionRef = this.customerSessionReference(input.customerSessionId);
-      const cartRef = this.firestore.collection('carts').doc(cartId);
+      const cartReferences = this.cartReferences(
+        input.customerSessionId,
+        input.cartId,
+      );
       const idempotencyRef = this.firestore.collection('orderRequests').doc(requestId);
-      const [requestSnapshot, sessionSnapshot, cartSnapshot] = await Promise.all([
+      const [requestSnapshot, sessionSnapshot, ...cartSnapshots] = await Promise.all([
         transaction.get(idempotencyRef),
         transaction.get(sessionRef),
-        transaction.get(cartRef),
+        ...cartReferences.map((reference) => transaction.get(reference)),
       ]);
+      const existingCartIndex = cartSnapshots.findIndex((snapshot) => snapshot.exists);
+      const cartRef =
+        cartReferences[existingCartIndex >= 0 ? existingCartIndex : 0];
+      const cartSnapshot =
+        cartSnapshots[existingCartIndex >= 0 ? existingCartIndex : 0];
 
       if (requestSnapshot.exists) {
         const previous = requireRecord(requestSnapshot.data(), 'Stored request is invalid.');
@@ -110,7 +118,11 @@ export class OrderService {
             : { ref: sessionRef, data: session };
           const cartToCreate = {
             ref: cartRef,
-            data: this.createDevelopmentCart(input, lines, now),
+            data: this.createDevelopmentCart(
+              { ...input, cartId: this.canonicalCartId(input.customerSessionId) },
+              lines,
+              now,
+            ),
           };
           return this.createOrderInTransaction(
             transaction,
@@ -177,12 +189,20 @@ export class OrderService {
     const result = await this.firestore.runTransaction(async (transaction) => {
       const idempotencyRef = this.firestore.collection('orderRequests').doc(requestId);
       const sessionRef = this.customerSessionReference(input.customerSessionId);
-      const cartRef = this.firestore.collection('carts').doc(input.cartId ?? `cart_${input.customerSessionId}`);
-      const [requestSnapshot, sessionSnapshot, cartSnapshot] = await Promise.all([
+      const cartReferences = this.cartReferences(
+        input.customerSessionId,
+        input.cartId,
+      );
+      const [requestSnapshot, sessionSnapshot, ...cartSnapshots] = await Promise.all([
         transaction.get(idempotencyRef),
         transaction.get(sessionRef),
-        transaction.get(cartRef),
+        ...cartReferences.map((reference) => transaction.get(reference)),
       ]);
+      const existingCartIndex = cartSnapshots.findIndex((snapshot) => snapshot.exists);
+      const cartRef =
+        cartReferences[existingCartIndex >= 0 ? existingCartIndex : 0];
+      const cartSnapshot =
+        cartSnapshots[existingCartIndex >= 0 ? existingCartIndex : 0];
       if (requestSnapshot.exists) {
         const previous = requireRecord(requestSnapshot.data(), 'Stored request is invalid.');
         if (previous.restaurantId !== input.restaurantId) {
@@ -226,7 +246,11 @@ export class OrderService {
         ? undefined
         : {
             ref: cartRef,
-            data: this.createDevelopmentCart(input, lines, now),
+            data: this.createDevelopmentCart(
+              { ...input, cartId: this.canonicalCartId(input.customerSessionId) },
+              lines,
+              now,
+            ),
           };
       return this.createOrderInTransaction(
         transaction,
@@ -510,6 +534,23 @@ export class OrderService {
       expiresAt: Timestamp.fromMillis(now.toMillis() + 24 * 60 * 60 * 1000),
     });
     return summary;
+  }
+
+  private canonicalCartId(customerSessionId: string): string {
+    return `cart_${this.resolveCustomerSessionId(customerSessionId)}`;
+  }
+
+  private cartReferences(
+    customerSessionId: string,
+    requestedCartId?: string,
+  ): FirebaseFirestore.DocumentReference[] {
+    const resolvedCustomerSessionId = this.resolveCustomerSessionId(customerSessionId);
+    const cartIds = [
+      this.canonicalCartId(resolvedCustomerSessionId),
+      requestedCartId?.trim() ?? '',
+      resolvedCustomerSessionId,
+    ].filter((value, index, values) => value.length > 0 && values.indexOf(value) === index);
+    return cartIds.map((cartId) => this.firestore.collection('carts').doc(cartId));
   }
 
   private resolveCustomerSessionId(customerSessionId: string): string {
