@@ -286,11 +286,31 @@ export class OrderService {
       data: Record<string, unknown>;
     }> = [];
     const developmentFallbackEnabled = this.isDevelopmentSessionFallbackEnabled();
+    logger.info('Order menu resolution started', {
+      requestId,
+      restaurantId: input.restaurantId,
+      branchId: session.branchId,
+      menuItemIds: lines.map((line) => line.menuItemId),
+      nestedMenuPaths: menuRefs.map(({ nested }) => nested.path),
+      developmentFallbackEnabled,
+    });
 
     for (let index = 0; index < menuSnapshots.length; index += 1) {
       const { legacySnapshot, nestedSnapshot, nested } = menuSnapshots[index];
-      const snapshot = legacySnapshot.exists ? legacySnapshot : nestedSnapshot;
+      // The nested restaurant menu is the canonical source used by Flutter
+      // and Angular. Only fall back to the legacy top-level record when the
+      // restaurant-scoped document is absent.
+      const snapshot = nestedSnapshot.exists ? nestedSnapshot : legacySnapshot;
       const line = lines[index];
+      logger.info('Order menu item snapshot', {
+        requestId,
+        menuItemId: line.menuItemId,
+        legacyPath: legacySnapshot.ref.path,
+        nestedPath: nested.path,
+        legacyExists: legacySnapshot.exists,
+        nestedExists: nestedSnapshot.exists,
+        selectedPath: snapshot.exists ? snapshot.ref.path : nested.path,
+      });
       let menu: Record<string, unknown>;
       let menuItemId: string;
       if (!snapshot.exists) {
@@ -324,6 +344,20 @@ export class OrderService {
         menu.isArchived === true ||
         menu.deletedAt
       ) {
+        logger.warn('Order menu item rejected', {
+          requestId,
+          menuItemId,
+          restaurantMatches,
+          branchMatches,
+          availabilityValid,
+          restaurantId: menu.restaurantId,
+          menuBranchId: menu.branchId,
+          isAvailable: menu.isAvailable,
+          availability: menu.availability,
+          status: menu.status,
+          isArchived: menu.isArchived,
+          deletedAt: menu.deletedAt,
+        });
         throw new ApplicationError('VALIDATION_FAILED', 'A menu item is unavailable.');
       }
       const rawPrice = menu.price;

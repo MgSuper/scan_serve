@@ -1,5 +1,6 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:cloud_functions/cloud_functions.dart';
+import 'package:flutter/foundation.dart' show debugPrint;
 
 import '../domain/customer_repository.dart';
 import '../domain/models.dart';
@@ -147,8 +148,15 @@ class FirestoreCustomerRepository implements CustomerRepository {
         '${customerSessionId}_${DateTime.now().microsecondsSinceEpoch}';
     final cartReferenceId = cartId;
     try {
+      final canonicalLines = await _canonicalizeMenuItemIds(lines);
+      debugPrint(
+        '[CustomerRepository] submitOrder cartPath=carts/$cartId '
+        'restaurantId=$restaurantId branchId=$branchId '
+        'customerSessionId=$customerSessionId '
+        'menuItemIds=${canonicalLines.map((line) => line.item.id).toList()}',
+      );
       await _ensureCustomerSession();
-      await _persistCart(lines);
+      await _persistCart(canonicalLines);
       final callable = _functions.httpsCallable('submitOrder');
       final result = await callable.call(<String, Object?>{
         'requestId': requestId,
@@ -179,7 +187,7 @@ class FirestoreCustomerRepository implements CustomerRepository {
       }
       return CustomerOrder(
         id: orderId,
-        lines: List.unmodifiable(lines),
+        lines: List.unmodifiable(canonicalLines),
         status: OrderStatus.pending,
         createdAt: now,
       );
@@ -197,6 +205,10 @@ class FirestoreCustomerRepository implements CustomerRepository {
   }
 
   Future<void> _persistCart(List<CartLine> lines) async {
+    debugPrint(
+      '[CustomerRepository] persistCart path=carts/$cartId '
+      'menuItemIds=${lines.map((line) => line.item.id).toList()}',
+    );
     final cartReference = _firestore.collection('carts').doc(cartId);
     final items = lines
         .map(
@@ -229,6 +241,54 @@ class FirestoreCustomerRepository implements CustomerRepository {
       'createdAt': FieldValue.serverTimestamp(),
       'updatedAt': FieldValue.serverTimestamp(),
     }, SetOptions(merge: true));
+  }
+
+  Future<List<CartLine>> _canonicalizeMenuItemIds(List<CartLine> lines) async {
+    final menuPath = 'restaurants/$restaurantId/menu';
+    final snapshot = await _menu.get();
+    final documentsById = <String, QueryDocumentSnapshot<Map<String, dynamic>>>{
+      for (final document in snapshot.docs) document.id: document,
+    };
+    final documentsByLegacyId =
+        <String, QueryDocumentSnapshot<Map<String, dynamic>>>{};
+    for (final document in snapshot.docs) {
+      final legacyId = document.data()['id'];
+      if (legacyId is String && legacyId.trim().isNotEmpty) {
+        documentsByLegacyId[legacyId.trim()] = document;
+      }
+    }
+    debugPrint(
+      '[CustomerRepository] menuDocuments path=$menuPath '
+      'documentIds=${snapshot.docs.map((document) => document.id).toList()}',
+    );
+
+    return lines
+        .map((line) {
+          final document =
+              documentsById[line.item.id] ?? documentsByLegacyId[line.item.id];
+          if (document == null || document.id == line.item.id) return line;
+          final data = document.data();
+          final canonicalItem = MenuItem(
+            id: document.id,
+            category: _optionalString(data['category']) ?? line.item.category,
+            name: _optionalString(data['name']) ?? line.item.name,
+            description:
+                _optionalString(data['description']) ?? line.item.description,
+            price: data['price'] is num && (data['price'] as num) >= 0
+                ? (data['price'] as num).toInt()
+                : line.item.price,
+            available: data['isAvailable'] is bool
+                ? data['isAvailable'] as bool
+                : data['availability'] == 'in_stock' ||
+                      data['status'] == 'in_stock',
+          );
+          debugPrint(
+            '[CustomerRepository] canonicalized menuItemId=${line.item.id} '
+            'to documentId=${document.id}',
+          );
+          return CartLine(item: canonicalItem, quantity: line.quantity);
+        })
+        .toList(growable: false);
   }
 
   String get cartId =>

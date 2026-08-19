@@ -1,5 +1,6 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:cloud_functions/cloud_functions.dart';
+import 'package:flutter/foundation.dart' show debugPrint;
 import 'package:scan_serve/core/error/repository_exception.dart';
 import 'package:scan_serve/features/cart/data/cart_mappers.dart';
 import 'package:scan_serve/features/cart/domain/cart_entities.dart';
@@ -17,6 +18,10 @@ class CartRepositoryImpl implements CartRepository {
 
   @override
   Future<Cart> saveCart(Cart cart) async {
+    debugPrint(
+      '[CartRepository] saveCart cartPath=carts/${cart.id} '
+      'menuItemIds=${cart.items.map((item) => item.menuItemId).toList()}',
+    );
     try {
       final dto = cart.toDto();
       await _firestore.collection('carts').doc(cart.id).set(<String, Object?>{
@@ -55,16 +60,29 @@ class CartRepositoryImpl implements CartRepository {
   Future<String> submitOrder(Cart cart) async {
     final requestId = _requestId(cart.id);
     try {
+      final canonicalCart = await _canonicalizeMenuItemIds(cart);
+      debugPrint(
+        '[CartRepository] submitOrder cartPath=carts/${canonicalCart.id} '
+        'restaurantId=${canonicalCart.restaurantId} branchId=${canonicalCart.branchId} '
+        'customerSessionId=${canonicalCart.customerSessionId} '
+        'menuItemIds=${canonicalCart.items.map((item) => item.menuItemId).toList()}',
+      );
+      // Re-persist the in-memory cart immediately before submission. This keeps
+      // retries after a Firestore-side cart reset aligned with the UI state.
+      await saveCart(canonicalCart);
       final callable = _functions.httpsCallable('submitOrder');
       final result = await callable.call(<String, Object?>{
         'requestId': requestId,
         'timestamp': DateTime.now().toUtc().toIso8601String(),
         'payload': <String, Object?>{
-          'restaurantId': cart.restaurantId,
-          'customerSessionId': cart.customerSessionId,
-          'cartId': cart.id,
+          'restaurantId': canonicalCart.restaurantId,
+          'customerSessionId': canonicalCart.customerSessionId,
+          'cartId': canonicalCart.id,
         },
       });
+      debugPrint(
+        '[CartRepository] submitOrder callable response=${result.data}',
+      );
       final envelope = _record(result.data, 'The order response was invalid.');
       if (envelope['success'] != true) {
         final error = envelope['error'];
@@ -94,6 +112,59 @@ class CartRepositoryImpl implements CartRepository {
         'Unable to submit the order. Please try again.',
       );
     }
+  }
+
+  Future<Cart> _canonicalizeMenuItemIds(Cart cart) async {
+    final menuPath = 'restaurants/${cart.restaurantId}/menu';
+    final snapshot = await _firestore
+        .collection('restaurants')
+        .doc(cart.restaurantId)
+        .collection('menu')
+        .get();
+    final documentsById = <String, QueryDocumentSnapshot<Map<String, dynamic>>>{
+      for (final document in snapshot.docs) document.id: document,
+    };
+    final documentsByLegacyId =
+        <String, QueryDocumentSnapshot<Map<String, dynamic>>>{};
+    for (final document in snapshot.docs) {
+      final legacyId = document.data()['id'];
+      if (legacyId is String && legacyId.trim().isNotEmpty) {
+        documentsByLegacyId[legacyId.trim()] = document;
+      }
+    }
+    debugPrint(
+      '[CartRepository] menuDocuments path=$menuPath '
+      'documentIds=${snapshot.docs.map((document) => document.id).toList()}',
+    );
+
+    var changed = false;
+    final items = cart.items
+        .map((item) {
+          final document =
+              documentsById[item.menuItemId] ??
+              documentsByLegacyId[item.menuItemId];
+          if (document == null || document.id == item.menuItemId) return item;
+          changed = true;
+          final data = document.data();
+          final name = data['name'];
+          final price = data['price'];
+          debugPrint(
+            '[CartRepository] canonicalized menuItemId=${item.menuItemId} '
+            'to documentId=${document.id}',
+          );
+          return CartItem(
+            menuItemId: document.id,
+            name: name is String && name.trim().isNotEmpty ? name : item.name,
+            unitPrice: price is num && price.isFinite && price >= 0
+                ? price.toInt()
+                : item.unitPrice,
+            quantity: item.quantity,
+            note: item.note,
+            modifiers: item.modifiers,
+          );
+        })
+        .toList(growable: false);
+    return changed ? cart.copyWith(items: items) : cart;
   }
 
   Map<String, dynamic> _record(Object? value, String message) {

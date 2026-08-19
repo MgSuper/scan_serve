@@ -64,7 +64,11 @@ class CartBloc extends Bloc<CartEvent, CartState> {
     emit(CartSubmitting(currentCart));
     try {
       final orderId = await _submitOrder(currentCart);
-      emit(CartSubmitted(currentCart, orderId: orderId));
+      // The backend clears the persisted cart after order creation. Clear the
+      // in-memory cart as well so a later order cannot reuse stale menu IDs.
+      emit(
+        CartSubmitted(currentCart.copyWith(items: const []), orderId: orderId),
+      );
     } catch (error) {
       emit(CartError(currentCart, message: _message(error)));
     }
