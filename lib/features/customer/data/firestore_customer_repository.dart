@@ -1,26 +1,38 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:cloud_functions/cloud_functions.dart';
 import 'package:flutter/foundation.dart' show debugPrint;
+import 'package:scan_serve/core/config/scan_serve_firestore_contract.dart';
 
 import '../domain/customer_repository.dart';
 import '../domain/models.dart';
 
 class FirestoreCustomerRepository implements CustomerRepository {
-  static const defaultRestaurantId = 'scanserve-demo';
-  static const defaultBranchId = 'main-branch';
-
   FirestoreCustomerRepository({
     required FirebaseFirestore firestore,
     required FirebaseFunctions functions,
     String? restaurantId,
     required this.tableId,
     String? branchId,
-    this.tableSessionId = 'active-table-session',
-    this.customerSessionId = 'active-customer-session',
+    String? tableSessionId,
+    String? customerSessionId,
   }) : _firestore = firestore,
        _functions = functions,
-       restaurantId = _normalizeIdentifier(restaurantId, defaultRestaurantId),
-       branchId = _normalizeIdentifier(branchId, defaultBranchId);
+       restaurantId = _normalizeIdentifier(
+         restaurantId,
+         ScanServeFirestoreContract.restaurantId,
+       ),
+       branchId = _normalizeIdentifier(
+         branchId,
+         ScanServeFirestoreContract.branchId,
+       ),
+       tableSessionId = _normalizeIdentifier(
+         tableSessionId,
+         ScanServeFirestoreContract.tableSessionId,
+       ),
+       customerSessionId = _normalizeIdentifier(
+         customerSessionId,
+         ScanServeFirestoreContract.customerSessionId,
+       );
 
   final FirebaseFirestore _firestore;
   final FirebaseFunctions _functions;
@@ -250,7 +262,7 @@ class FirestoreCustomerRepository implements CustomerRepository {
   }
 
   String get cartId =>
-      'cart_${customerSessionId.trim().isEmpty ? tableSessionId : customerSessionId}';
+      ScanServeFirestoreContract.canonicalCartId(customerSessionId);
 
   Future<void> _ensureCustomerSession() async {
     final sessionReference = _firestore

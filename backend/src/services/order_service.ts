@@ -1,6 +1,11 @@
 import { Firestore, Timestamp, Transaction } from 'firebase-admin/firestore';
 import { logger } from 'firebase-functions';
 import { ApplicationError } from '../shared/errors/application_error';
+import {
+  FIRESTORE_CONTRACT,
+  canonicalCartId,
+  normalizeCustomerSessionId,
+} from '../shared/firestore_contract';
 import type {
   SubmitOrderItem,
   SubmitOrderPayload,
@@ -36,11 +41,11 @@ export class OrderService {
   public constructor(private readonly firestore: Firestore) {}
 
   public async submitOrder(requestId: string, input: SubmitOrderPayload): Promise<OrderSummary> {
-    const resolvedCustomerSessionId = this.resolveCustomerSessionId(
+    const resolvedCustomerSessionId = normalizeCustomerSessionId(
       input.customerSessionId,
     );
     const resolvedCartId =
-      input.cartId?.trim() || this.canonicalCartId(resolvedCustomerSessionId);
+      input.cartId?.trim() || canonicalCartId(resolvedCustomerSessionId);
     const resolvedInput = {
       ...input,
       customerSessionId: resolvedCustomerSessionId,
@@ -119,7 +124,7 @@ export class OrderService {
           const cartToCreate = {
             ref: cartRef,
             data: this.createDevelopmentCart(
-              { ...input, cartId: this.canonicalCartId(input.customerSessionId) },
+              { ...input, cartId: canonicalCartId(input.customerSessionId) },
               lines,
               now,
             ),
@@ -247,7 +252,7 @@ export class OrderService {
         : {
             ref: cartRef,
             data: this.createDevelopmentCart(
-              { ...input, cartId: this.canonicalCartId(input.customerSessionId) },
+              { ...input, cartId: canonicalCartId(input.customerSessionId) },
               lines,
               now,
             ),
@@ -293,7 +298,7 @@ export class OrderService {
     const sessionBranchId =
       typeof session.branchId === 'string' && session.branchId.trim().length > 0
         ? session.branchId
-        : 'main-branch';
+        : FIRESTORE_CONTRACT.defaultBranchId;
     const restaurantRef = this.firestore.collection('restaurants').doc(input.restaurantId);
     const branchRef = restaurantRef.collection('branches').doc(sessionBranchId);
     const menuRefs = lines.map((line) =>
@@ -536,30 +541,21 @@ export class OrderService {
     return summary;
   }
 
-  private canonicalCartId(customerSessionId: string): string {
-    return `cart_${this.resolveCustomerSessionId(customerSessionId)}`;
-  }
-
   private cartReferences(
     customerSessionId: string,
     requestedCartId?: string,
   ): FirebaseFirestore.DocumentReference[] {
-    const resolvedCustomerSessionId = this.resolveCustomerSessionId(customerSessionId);
+    const resolvedCustomerSessionId = normalizeCustomerSessionId(customerSessionId);
     const cartIds = [
-      this.canonicalCartId(resolvedCustomerSessionId),
+      canonicalCartId(resolvedCustomerSessionId),
       requestedCartId?.trim() ?? '',
       resolvedCustomerSessionId,
     ].filter((value, index, values) => value.length > 0 && values.indexOf(value) === index);
     return cartIds.map((cartId) => this.firestore.collection('carts').doc(cartId));
   }
 
-  private resolveCustomerSessionId(customerSessionId: string): string {
-    const normalized = customerSessionId.trim();
-    return normalized || 'active-customer-session';
-  }
-
   private customerSessionReference(customerSessionId: string): FirebaseFirestore.DocumentReference {
-    const resolvedCustomerSessionId = this.resolveCustomerSessionId(customerSessionId);
+    const resolvedCustomerSessionId = normalizeCustomerSessionId(customerSessionId);
     return this.firestore.collection('customerSessions').doc(resolvedCustomerSessionId);
   }
 
@@ -583,7 +579,7 @@ export class OrderService {
       description: 'Development fallback menu item',
       category: 'Menu',
       restaurantId: input.restaurantId,
-      branchId: session.branchId ?? input.branchId ?? 'main-branch',
+      branchId: session.branchId ?? input.branchId ?? FIRESTORE_CONTRACT.defaultBranchId,
       price: unitPrice,
       isAvailable: true,
       isArchived: false,
@@ -598,7 +594,7 @@ export class OrderService {
     lines: CartItemRecord[],
     now: Timestamp,
   ): Record<string, unknown> {
-    const cartId = input.cartId ?? `cart_${input.customerSessionId}`;
+    const cartId = input.cartId ?? canonicalCartId(input.customerSessionId);
     const items = lines.map((line) => ({
       menuItemId: line.menuItemId,
       quantity: line.quantity,
@@ -608,9 +604,9 @@ export class OrderService {
     return {
       id: cartId,
       restaurantId: input.restaurantId,
-      branchId: input.branchId ?? 'main-branch',
-      tableId: input.tableId ?? 'table-12',
-      tableSessionId: input.tableSessionId ?? 'active-table-session',
+      branchId: input.branchId ?? FIRESTORE_CONTRACT.defaultBranchId,
+      tableId: input.tableId ?? FIRESTORE_CONTRACT.defaultTableId,
+      tableSessionId: input.tableSessionId ?? FIRESTORE_CONTRACT.defaultTableSessionId,
       customerSessionId: input.customerSessionId,
       items,
       totalQuantity: lines.reduce((sum, line) => sum + line.quantity, 0),
@@ -630,9 +626,9 @@ export class OrderService {
       id: input.customerSessionId,
       customerSessionId: input.customerSessionId,
       restaurantId: input.restaurantId,
-      branchId: input.branchId ?? 'main-branch',
-      tableId: input.tableId ?? 'table-12',
-      tableSessionId: input.tableSessionId ?? 'active-table-session',
+      branchId: input.branchId ?? FIRESTORE_CONTRACT.defaultBranchId,
+      tableId: input.tableId ?? FIRESTORE_CONTRACT.defaultTableId,
+      tableSessionId: input.tableSessionId ?? FIRESTORE_CONTRACT.defaultTableSessionId,
       status: 'ACTIVE',
       isActive: true,
       isArchived: false,

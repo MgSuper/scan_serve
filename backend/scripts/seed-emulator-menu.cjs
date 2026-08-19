@@ -2,8 +2,10 @@ const { initializeApp } = require('firebase-admin/app');
 const { getFirestore, FieldValue } = require('firebase-admin/firestore');
 
 const projectId = process.env.GCLOUD_PROJECT || 'scanserve-app-1010';
-const restaurantId = process.env.SCAN_SERVE_RESTAURANT_ID || 'scanserve-demo';
-const branchId = process.env.SCAN_SERVE_BRANCH_ID || 'main-branch';
+const DEFAULT_RESTAURANT_ID = 'scanserve-demo';
+const DEFAULT_BRANCH_ID = 'main-branch';
+const restaurantId = process.env.SCAN_SERVE_RESTAURANT_ID || DEFAULT_RESTAURANT_ID;
+const branchId = process.env.SCAN_SERVE_BRANCH_ID || DEFAULT_BRANCH_ID;
 
 process.env.FIRESTORE_EMULATOR_HOST ||= '127.0.0.1:8080';
 initializeApp({ projectId });

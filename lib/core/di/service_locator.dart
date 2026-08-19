@@ -4,6 +4,7 @@ import 'package:get_it/get_it.dart';
 import 'package:scan_serve/app/localization/locale_cubit.dart';
 import 'package:scan_serve/app/theme/theme_cubit.dart';
 import 'package:scan_serve/core/config/app_config.dart';
+import 'package:scan_serve/core/config/scan_serve_firestore_contract.dart';
 import 'package:scan_serve/core/network/api_client.dart';
 import 'package:scan_serve/core/network/dio_factory.dart';
 import 'package:scan_serve/features/cart/data/cart_repository_impl.dart';
@@ -110,23 +111,23 @@ Future<void> setupLocator(AppConfig config) async {
         functions: sl<FirebaseFunctions>(),
         restaurantId: const String.fromEnvironment(
           'SCAN_SERVE_RESTAURANT_ID',
-          defaultValue: 'scanserve-demo',
+          defaultValue: ScanServeFirestoreContract.restaurantId,
         ),
         branchId: const String.fromEnvironment(
           'SCAN_SERVE_BRANCH_ID',
-          defaultValue: 'main-branch',
+          defaultValue: ScanServeFirestoreContract.branchId,
         ),
         tableId: const String.fromEnvironment(
           'SCAN_SERVE_TABLE_ID',
-          defaultValue: 'table-12',
+          defaultValue: ScanServeFirestoreContract.tableId,
         ),
         tableSessionId: const String.fromEnvironment(
           'SCAN_SERVE_TABLE_SESSION_ID',
-          defaultValue: 'active-table-session',
+          defaultValue: ScanServeFirestoreContract.tableSessionId,
         ),
         customerSessionId: const String.fromEnvironment(
           'SCAN_SERVE_CUSTOMER_SESSION_ID',
-          defaultValue: 'active-customer-session',
+          defaultValue: ScanServeFirestoreContract.customerSessionId,
         ),
       ),
     );

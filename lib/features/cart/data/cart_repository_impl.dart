@@ -1,6 +1,7 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:cloud_functions/cloud_functions.dart';
 import 'package:flutter/foundation.dart' show debugPrint;
+import 'package:scan_serve/core/config/scan_serve_firestore_contract.dart';
 import 'package:scan_serve/core/error/repository_exception.dart';
 import 'package:scan_serve/features/cart/data/cart_mappers.dart';
 import 'package:scan_serve/features/cart/domain/cart_entities.dart';
@@ -18,36 +19,40 @@ class CartRepositoryImpl implements CartRepository {
 
   @override
   Future<Cart> saveCart(Cart cart) async {
+    final canonicalCart = _withCanonicalCartId(cart);
     debugPrint(
-      '[CartRepository] saveCart cartPath=carts/${cart.id} '
-      'menuItemIds=${cart.items.map((item) => item.menuItemId).toList()}',
+      '[CartRepository] saveCart cartPath=carts/${canonicalCart.id} '
+      'menuItemIds=${canonicalCart.items.map((item) => item.menuItemId).toList()}',
     );
     try {
-      final dto = cart.toDto();
-      await _firestore.collection('carts').doc(cart.id).set(<String, Object?>{
-        'id': dto.id,
-        'restaurantId': dto.restaurantId,
-        'branchId': dto.branchId,
-        'tableId': dto.tableId,
-        'tableSessionId': dto.tableSessionId,
-        'customerSessionId': dto.customerSessionId,
-        'items': dto.items
-            .map(
-              (item) => <String, Object?>{
-                'menuItemId': item.menuItemId,
-                'name': item.name,
-                'unitPrice': item.unitPrice,
-                'quantity': item.quantity,
-                'note': item.note,
-                'modifiers': item.modifiers,
-              },
-            )
-            .toList(growable: false),
-        'subtotal': cart.subtotal,
-        'totalQuantity': cart.totalQuantity,
-        ...dto.metadata.toFirestore(),
-      }, SetOptions(merge: true));
-      return cart;
+      final dto = canonicalCart.toDto();
+      await _firestore.collection('carts').doc(canonicalCart.id).set(
+        <String, Object?>{
+          'id': dto.id,
+          'restaurantId': dto.restaurantId,
+          'branchId': dto.branchId,
+          'tableId': dto.tableId,
+          'tableSessionId': dto.tableSessionId,
+          'customerSessionId': dto.customerSessionId,
+          'items': dto.items
+              .map(
+                (item) => <String, Object?>{
+                  'menuItemId': item.menuItemId,
+                  'name': item.name,
+                  'unitPrice': item.unitPrice,
+                  'quantity': item.quantity,
+                  'note': item.note,
+                  'modifiers': item.modifiers,
+                },
+              )
+              .toList(growable: false),
+          'subtotal': canonicalCart.subtotal,
+          'totalQuantity': canonicalCart.totalQuantity,
+          ...dto.metadata.toFirestore(),
+        },
+        SetOptions(merge: true),
+      );
+      return canonicalCart;
     } on FirebaseException catch (error) {
       throw RepositoryException(_firestoreMessage(error));
     } catch (error) {
@@ -60,7 +65,9 @@ class CartRepositoryImpl implements CartRepository {
   Future<String> submitOrder(Cart cart) async {
     final requestId = _requestId(cart.id);
     try {
-      final canonicalCart = await _canonicalizeMenuItemIds(cart);
+      final canonicalCart = await _canonicalizeMenuItemIds(
+        _withCanonicalCartId(cart),
+      );
       debugPrint(
         '[CartRepository] submitOrder cartPath=carts/${canonicalCart.id} '
         'restaurantId=${canonicalCart.restaurantId} branchId=${canonicalCart.branchId} '
@@ -112,6 +119,23 @@ class CartRepositoryImpl implements CartRepository {
         'Unable to submit the order. Please try again.',
       );
     }
+  }
+
+  Cart _withCanonicalCartId(Cart cart) {
+    final canonicalId = ScanServeFirestoreContract.canonicalCartId(
+      cart.customerSessionId,
+    );
+    if (cart.id == canonicalId) return cart;
+    return Cart(
+      id: canonicalId,
+      restaurantId: cart.restaurantId,
+      branchId: cart.branchId,
+      tableId: cart.tableId,
+      tableSessionId: cart.tableSessionId,
+      customerSessionId: cart.customerSessionId,
+      items: cart.items,
+      metadata: cart.metadata,
+    );
   }
 
   Future<Cart> _canonicalizeMenuItemIds(Cart cart) async {

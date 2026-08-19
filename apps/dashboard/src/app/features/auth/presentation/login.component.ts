@@ -2,6 +2,7 @@ import { ChangeDetectionStrategy, Component, inject, signal } from '@angular/cor
 import { FormsModule, NgForm } from '@angular/forms';
 import { ActivatedRoute, Router } from '@angular/router';
 import { AuthService } from '../../../core/auth/auth.service';
+import { DEFAULT_RESTAURANT_ID } from '../../../shared/restaurant-context';
 
 @Component({
   selector: 'app-login',
@@ -41,7 +42,9 @@ export class LoginComponent {
   }
 
   private safeRedirect(value: string | null): string {
-    return value?.startsWith('/') && !value.startsWith('//') ? value : '/kitchen/scanserve-demo';
+    return value?.startsWith('/') && !value.startsWith('//')
+      ? value
+      : `/kitchen/${DEFAULT_RESTAURANT_ID}`;
   }
 
   private messageFor(error: unknown): string {

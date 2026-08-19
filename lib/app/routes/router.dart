@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:go_router/go_router.dart';
 import 'package:scan_serve/app/routes/app_routes.dart';
+import 'package:scan_serve/core/config/scan_serve_firestore_contract.dart';
 import 'package:scan_serve/core/di/service_locator.dart';
 import 'package:scan_serve/features/cart/domain/cart_entities.dart';
 import 'package:scan_serve/features/cart/presentation/bloc/cart_bloc.dart';
@@ -71,8 +72,8 @@ class AppRouter {
     final value = state.uri.queryParameters[key]?.trim();
     if (value != null && value.isNotEmpty) return value;
     return switch (key) {
-      'restaurantId' => 'scanserve-demo',
-      'branchId' => 'main-branch',
+      'restaurantId' => ScanServeFirestoreContract.restaurantId,
+      'branchId' => ScanServeFirestoreContract.branchId,
       _ => '',
     };
   }
@@ -83,7 +84,7 @@ class AppRouter {
     final customerSessionId = _query(state, 'customerSessionId');
     return Cart.empty(
       id: _query(state, 'cartId').isEmpty
-          ? 'cart-$customerSessionId'
+          ? ScanServeFirestoreContract.canonicalCartId(customerSessionId)
           : _query(state, 'cartId'),
       restaurantId: restaurantId,
       branchId: branchId,
