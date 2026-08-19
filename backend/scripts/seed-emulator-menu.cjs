@@ -1,4 +1,5 @@
 const { initializeApp } = require('firebase-admin/app');
+const { getAuth } = require('firebase-admin/auth');
 const { getFirestore, FieldValue } = require('firebase-admin/firestore');
 
 const projectId = process.env.GCLOUD_PROJECT || 'scanserve-app-1010';
@@ -8,8 +9,12 @@ const restaurantId = process.env.SCAN_SERVE_RESTAURANT_ID || DEFAULT_RESTAURANT_
 const branchId = process.env.SCAN_SERVE_BRANCH_ID || DEFAULT_BRANCH_ID;
 
 process.env.FIRESTORE_EMULATOR_HOST ||= '127.0.0.1:8080';
+process.env.FIREBASE_AUTH_EMULATOR_HOST ||= '127.0.0.1:9099';
+const staffEmail = process.env.SCAN_SERVE_STAFF_EMAIL || 'staff@scanserve.com';
+const staffPassword = process.env.SCAN_SERVE_STAFF_PASSWORD || 'password124';
 initializeApp({ projectId });
 const firestore = getFirestore();
+const auth = getAuth();
 
 const menuItems = [
   {
@@ -54,7 +59,57 @@ const menuItems = [
   },
 ];
 
+async function seedStaffProfile() {
+  let user;
+  try {
+    user = await auth.getUserByEmail(staffEmail);
+  } catch (error) {
+    if (error.code !== 'auth/user-not-found') throw error;
+    user = await auth.createUser({ email: staffEmail, password: staffPassword, emailVerified: true });
+  }
+  const now = FieldValue.serverTimestamp();
+  const roleId = 'role-demo-kitchen-staff';
+  const role = {
+    id: roleId,
+    name: 'kitchen_staff',
+    displayName: 'Kitchen Staff',
+    restaurantId,
+    branchId,
+    permissions: ['orders.updateStatus'],
+    isActive: true,
+    isArchived: false,
+    deletedAt: null,
+    createdAt: now,
+    updatedAt: now,
+  };
+  const staff = {
+    id: user.uid,
+    authUid: user.uid,
+    email: staffEmail,
+    displayName: 'Demo Kitchen Staff',
+    restaurantId,
+    branchId,
+    roleId,
+    isActive: true,
+    isArchived: false,
+    deletedAt: null,
+    createdAt: now,
+    updatedAt: now,
+  };
+  const batch = firestore.batch();
+  batch.set(firestore.collection('roles').doc(roleId), role, { merge: true });
+  batch.set(firestore.collection('staff').doc(user.uid), staff, { merge: true });
+  batch.set(
+    firestore.collection('restaurants').doc(restaurantId).collection('staff').doc(user.uid),
+    staff,
+    { merge: true },
+  );
+  await batch.commit();
+  console.log(`[firestore-emulator] Seeded active ${role.name} profile for ${staffEmail} (${user.uid}) at ${restaurantId}/${branchId}.`);
+}
+
 async function seedMenu() {
+  await seedStaffProfile();
   const batch = firestore.batch();
   const now = FieldValue.serverTimestamp();
   const restaurantReference = firestore.collection('restaurants').doc(restaurantId);

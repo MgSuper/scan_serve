@@ -20,7 +20,16 @@ export class OrderStatusService {
     const result = await this.firestore.runTransaction(async (transaction) => {
       const staffQuery = this.firestore.collection('staff').where('authUid', '==', authUid).limit(1);
       const orderRef = this.firestore.collection('orders').doc(input.orderId);
-      const [staffQuerySnapshot, orderSnapshot] = await Promise.all([transaction.get(staffQuery), transaction.get(orderRef)]);
+      const nestedOrderRef = this.firestore
+        .collection('restaurants')
+        .doc(input.restaurantId)
+        .collection('orders')
+        .doc(input.orderId);
+      const [staffQuerySnapshot, orderSnapshot, nestedOrderSnapshot] = await Promise.all([
+        transaction.get(staffQuery),
+        transaction.get(orderRef),
+        transaction.get(nestedOrderRef),
+      ]);
       if (staffQuerySnapshot.empty) throw new ApplicationError('UNAUTHORIZED', 'No staff profile is associated with this account.');
       if (!orderSnapshot.exists) throw new ApplicationError('NOT_FOUND', 'Order was not found.');
       const staff = record(staffQuerySnapshot.docs[0].data(), 'Staff profile is invalid.');
@@ -44,6 +53,7 @@ export class OrderStatusService {
       if (input.status === 'READY') updates.preparedAt = now;
       if (input.status === 'SERVED') updates.servedAt = now;
       transaction.update(orderRef, updates);
+      if (nestedOrderSnapshot.exists) transaction.update(nestedOrderRef, updates);
       return { id: orderSnapshot.id, restaurantId: input.restaurantId, status: input.status, updatedAt: now.toDate().toISOString() };
     });
     logger.info('updateOrderStatus completed', { authUid, restaurantId: input.restaurantId, orderId: result.id, status: result.status });
