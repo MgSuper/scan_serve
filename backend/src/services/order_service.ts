@@ -258,6 +258,13 @@ export class OrderService {
       data: Record<string, unknown>;
     },
   ): Promise<OrderSummary> {
+    const developmentFallbackEnabled = this.isDevelopmentSessionFallbackEnabled();
+    const sessionBranchId =
+      typeof session.branchId === 'string' && session.branchId.trim().length > 0
+        ? session.branchId
+        : 'main-branch';
+    const restaurantRef = this.firestore.collection('restaurants').doc(input.restaurantId);
+    const branchRef = restaurantRef.collection('branches').doc(sessionBranchId);
     const menuRefs = lines.map((line) =>
       this.firestore
         .collection('restaurants')
@@ -265,12 +272,14 @@ export class OrderService {
         .collection('menu')
         .doc(line.menuItemId),
     );
-    const menuSnapshots = await Promise.all(
-      menuRefs.map(async (nested) => ({
+    const [restaurantSnapshot, branchSnapshot, ...menuSnapshots] = await Promise.all([
+      transaction.get(restaurantRef),
+      transaction.get(branchRef),
+      ...menuRefs.map(async (nested) => ({
         nestedSnapshot: await transaction.get(nested),
         nested,
       })),
-    );
+    ]);
     const orderId = this.firestore.collection('orders').doc().id;
     const orderItems: Array<{
       ref: FirebaseFirestore.DocumentReference;
@@ -281,7 +290,6 @@ export class OrderService {
       ref: FirebaseFirestore.DocumentReference;
       data: Record<string, unknown>;
     }> = [];
-    const developmentFallbackEnabled = this.isDevelopmentSessionFallbackEnabled();
     logger.info('Order menu resolution started', {
       requestId,
       restaurantId: input.restaurantId,
@@ -290,11 +298,6 @@ export class OrderService {
       nestedMenuPaths: menuRefs.map((reference) => reference.path),
       developmentFallbackEnabled,
     });
-
-    const sessionBranchId =
-      typeof session.branchId === 'string' && session.branchId.trim().length > 0
-        ? session.branchId
-        : 'main-branch';
 
     for (let index = 0; index < menuSnapshots.length; index += 1) {
       const { nestedSnapshot, nested } = menuSnapshots[index];
@@ -443,6 +446,40 @@ export class OrderService {
       .doc(input.restaurantId)
       .collection('orders')
       .doc(orderId);
+    if (developmentFallbackEnabled) {
+      const nowIso = now.toDate().toISOString();
+      transaction.set(
+        restaurantRef,
+        {
+          id: input.restaurantId,
+          name: input.restaurantId,
+          defaultBranchId: sessionBranchId,
+          isActive: true,
+          updatedAt: now,
+          createdAt: restaurantSnapshot.exists
+            ? restaurantSnapshot.data()?.createdAt ?? now
+            : now,
+          metadataSource: 'development-order-fallback',
+        },
+        { merge: true },
+      );
+      transaction.set(
+        branchRef,
+        {
+          id: sessionBranchId,
+          restaurantId: input.restaurantId,
+          name: sessionBranchId,
+          isActive: true,
+          updatedAt: now,
+          createdAt: branchSnapshot.exists
+            ? branchSnapshot.data()?.createdAt ?? now
+            : now,
+          metadataSource: 'development-order-fallback',
+          initializedAt: nowIso,
+        },
+        { merge: true },
+      );
+    }
     if (sessionToCreate) {
       transaction.create(sessionToCreate.ref, sessionToCreate.data);
     }

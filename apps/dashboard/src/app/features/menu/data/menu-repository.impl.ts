@@ -1,17 +1,20 @@
 import { inject, Injectable, Injector, runInInjectionContext } from '@angular/core';
 import {
-  addDoc,
   collection,
   doc,
   Firestore,
   onSnapshot,
   query,
   serverTimestamp,
+  setDoc,
   updateDoc,
 } from '@angular/fire/firestore';
 import { catchError, from, map, Observable, of, startWith, throwError } from 'rxjs';
 
-import { normalizeRestaurantId } from '../../../shared/restaurant-context';
+import {
+  DEFAULT_BRANCH_ID,
+  normalizeRestaurantId,
+} from '../../../shared/restaurant-context';
 import {
   CreateMenuItemInput,
   MenuAvailability,
@@ -83,9 +86,47 @@ export class MenuRepositoryImpl extends MenuRepository {
   createMenuItem(restaurantId: string, input: CreateMenuItemInput): Observable<MenuItem> {
     const resolvedRestaurantId = normalizeRestaurantId(restaurantId);
     return from(
-      runInInjectionContext(this.injector, () =>
-        addDoc(collection(this.firestore, `restaurants/${resolvedRestaurantId}/menu`), {
+      runInInjectionContext(this.injector, async () => {
+        const timestamp = serverTimestamp();
+        const restaurantReference = doc(
+          this.firestore,
+          `restaurants/${resolvedRestaurantId}`,
+        );
+        const branchReference = doc(
+          this.firestore,
+          `restaurants/${resolvedRestaurantId}/branches/${DEFAULT_BRANCH_ID}`,
+        );
+        const menuReference = doc(
+          collection(this.firestore, `restaurants/${resolvedRestaurantId}/menu`),
+        );
+        await setDoc(
+          restaurantReference,
+          {
+            id: resolvedRestaurantId,
+            name: resolvedRestaurantId,
+            defaultBranchId: DEFAULT_BRANCH_ID,
+            isActive: true,
+            createdAt: timestamp,
+            updatedAt: timestamp,
+          },
+          { merge: true },
+        );
+        await setDoc(
+          branchReference,
+          {
+            id: DEFAULT_BRANCH_ID,
+            restaurantId: resolvedRestaurantId,
+            name: DEFAULT_BRANCH_ID,
+            isActive: true,
+            createdAt: timestamp,
+            updatedAt: timestamp,
+          },
+          { merge: true },
+        );
+        await setDoc(menuReference, {
+          id: menuReference.id,
           restaurantId: resolvedRestaurantId,
+          branchId: DEFAULT_BRANCH_ID,
           name: input.name.trim(),
           description: input.description.trim(),
           category: input.category.trim(),
@@ -94,15 +135,16 @@ export class MenuRepositoryImpl extends MenuRepository {
           status: input.availability,
           isAvailable: input.availability === 'in_stock',
           archived: false,
-          createdAt: serverTimestamp(),
-          updatedAt: serverTimestamp(),
-        }),
-      ),
+          createdAt: timestamp,
+          updatedAt: timestamp,
+        });
+        return menuReference;
+      }),
     ).pipe(
       map((reference) => ({
         id: reference.id,
         restaurantId: resolvedRestaurantId,
-        branchId: null,
+        branchId: DEFAULT_BRANCH_ID,
         name: input.name.trim(),
         description: input.description.trim(),
         category: input.category.trim(),

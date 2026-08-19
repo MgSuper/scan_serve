@@ -55,7 +55,33 @@ const menuItems = [
 async function seedMenu() {
   const batch = firestore.batch();
   const now = FieldValue.serverTimestamp();
-  const nestedMenu = firestore.collection('restaurants').doc(restaurantId).collection('menu');
+  const restaurantReference = firestore.collection('restaurants').doc(restaurantId);
+  const branchReference = restaurantReference.collection('branches').doc(branchId);
+  const nestedMenu = restaurantReference.collection('menu');
+  batch.set(
+    restaurantReference,
+    {
+      id: restaurantId,
+      name: restaurantId,
+      defaultBranchId: branchId,
+      isActive: true,
+      createdAt: now,
+      updatedAt: now,
+    },
+    { merge: true },
+  );
+  batch.set(
+    branchReference,
+    {
+      id: branchId,
+      restaurantId,
+      name: branchId,
+      isActive: true,
+      createdAt: now,
+      updatedAt: now,
+    },
+    { merge: true },
+  );
 
   for (const item of menuItems) {
     const common = {
