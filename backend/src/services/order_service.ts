@@ -14,6 +14,8 @@ import type {
 interface CartItemRecord {
   menuItemId: string;
   quantity: number;
+  notes?: string;
+  /** Legacy singular field retained for existing carts. */
   note?: string;
   modifiers?: string[];
   unitPrice?: number;
@@ -115,7 +117,7 @@ export class OrderService {
           const lines = input.items.map((item) => ({
             menuItemId: item.menuItemId,
             quantity: item.quantity,
-            ...(item.note === undefined ? {} : { note: item.note }),
+            ...((item.notes ?? item.note) === undefined ? {} : { notes: item.notes ?? item.note }),
             ...(item.modifiers === undefined ? {} : { modifiers: item.modifiers }),
           }));
           const sessionToCreate = sessionSnapshot.exists
@@ -415,11 +417,19 @@ export class OrderService {
         itemId: menuItemId,
         menuItemId,
         name: typeof menu.name === 'string' ? menu.name : menuItemId,
-        category: typeof menu.category === 'string' ? menu.category : 'Menu',
+        category: typeof menu.categoryName === 'string'
+          ? menu.categoryName
+          : typeof menu.category === 'string'
+            ? menu.category
+            : 'Menu',
+        categoryId: typeof menu.categoryId === 'string' ? menu.categoryId : null,
+        categoryName: typeof menu.categoryName === 'string' ? menu.categoryName : null,
+        imageUrl: typeof menu.imageUrl === 'string' ? menu.imageUrl : null,
         unitPrice,
         price: unitPrice,
         quantity: line.quantity,
         lineTotal,
+        notes: line.notes ?? line.note ?? null,
       };
       orderItems.push({
         ref: orderItemRef,
@@ -429,12 +439,15 @@ export class OrderService {
           restaurantId: input.restaurantId,
           branchId: session.branchId,
           menuItemId,
-          categoryId: typeof menu.categoryId === 'string' ? menu.categoryId : null,
+          categoryId: nestedItem.categoryId,
+          categoryName: nestedItem.categoryName,
+          imageUrl: nestedItem.imageUrl,
           name: nestedItem.name,
           unitPrice,
           quantity: line.quantity,
           lineTotal,
-          note: line.note ?? null,
+          notes: nestedItem.notes,
+          note: nestedItem.notes,
           modifiers: line.modifiers ?? [],
           createdAt: now,
           updatedAt: now,
@@ -578,6 +591,9 @@ export class OrderService {
       name: line.menuItemId,
       description: 'Development fallback menu item',
       category: 'Menu',
+      categoryId: 'development',
+      categoryName: 'Menu',
+      imageUrl: null,
       restaurantId: input.restaurantId,
       branchId: session.branchId ?? input.branchId ?? FIRESTORE_CONTRACT.defaultBranchId,
       price: unitPrice,
@@ -598,7 +614,7 @@ export class OrderService {
     const items = lines.map((line) => ({
       menuItemId: line.menuItemId,
       quantity: line.quantity,
-      ...(line.note === undefined ? {} : { note: line.note }),
+      ...((line.notes ?? line.note) === undefined ? {} : { notes: line.notes ?? line.note }),
       ...(line.modifiers === undefined ? {} : { modifiers: line.modifiers }),
     }));
     return {
@@ -651,6 +667,19 @@ export class OrderService {
         'Cart item must include menuItemId and a positive integer quantity.',
       );
     }
-    return line as unknown as CartItemRecord;
+    const notes = typeof line.notes === 'string'
+      ? line.notes
+      : typeof line.note === 'string'
+        ? line.note
+        : undefined;
+    return {
+      menuItemId: line.menuItemId as string,
+      quantity: line.quantity as number,
+      ...(notes === undefined ? {} : { notes, note: notes }),
+      ...(Array.isArray(line.modifiers)
+        ? { modifiers: line.modifiers.filter((modifier): modifier is string => typeof modifier === 'string') }
+        : {}),
+      ...(typeof line.unitPrice === 'number' ? { unitPrice: line.unitPrice } : {}),
+    };
   }
 }

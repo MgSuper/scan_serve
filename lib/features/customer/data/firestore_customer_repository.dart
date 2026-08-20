@@ -138,6 +138,16 @@ class FirestoreCustomerRepository implements CustomerRepository {
           'branchId': branchId,
           'tableId': tableId,
           'tableSessionId': tableSessionId,
+          'items': canonicalLines
+              .map(
+                (line) => <String, Object?>{
+                  'menuItemId': line.item.id,
+                  'quantity': line.quantity,
+                  'notes': line.resolvedNotes,
+                  'note': line.resolvedNotes,
+                },
+              )
+              .toList(growable: false),
         },
       });
       final envelope = _record(result.data);
@@ -188,7 +198,8 @@ class FirestoreCustomerRepository implements CustomerRepository {
             'unitPrice': line.item.price,
             'quantity': line.quantity,
             'lineTotal': line.total,
-            'note': null,
+            'notes': line.resolvedNotes,
+            'note': line.resolvedNotes,
             'modifiers': const <String>[],
           },
         )
@@ -240,10 +251,18 @@ class FirestoreCustomerRepository implements CustomerRepository {
           final data = document.data();
           final canonicalItem = MenuItem(
             id: document.id,
-            category: _optionalString(data['category']) ?? line.item.category,
+            category:
+                _optionalString(data['categoryName']) ??
+                _optionalString(data['category']) ??
+                line.item.category,
             name: _optionalString(data['name']) ?? line.item.name,
             description:
                 _optionalString(data['description']) ?? line.item.description,
+            imageUrl: _optionalString(data['imageUrl']) ?? line.item.imageUrl,
+            categoryId:
+                _optionalString(data['categoryId']) ?? line.item.categoryId,
+            categoryName:
+                _optionalString(data['categoryName']) ?? line.item.categoryName,
             price: data['price'] is num && (data['price'] as num) >= 0
                 ? (data['price'] as num).toInt()
                 : line.item.price,
@@ -256,7 +275,12 @@ class FirestoreCustomerRepository implements CustomerRepository {
             '[CustomerRepository] canonicalized menuItemId=${line.item.id} '
             'to documentId=${document.id}',
           );
-          return CartLine(item: canonicalItem, quantity: line.quantity);
+          return CartLine(
+            item: canonicalItem,
+            quantity: line.quantity,
+            notes: line.notes,
+            note: line.note,
+          );
         })
         .toList(growable: false);
   }
@@ -343,6 +367,7 @@ class FirestoreCustomerRepository implements CustomerRepository {
       // The legacy `id` field may be stale or differ from the document path.
       id: document.id,
       category:
+          _optionalString(data['categoryName']) ??
           _optionalString(data['category']) ??
           _optionalString(data['categoryId']) ??
           'Menu',
@@ -350,6 +375,9 @@ class FirestoreCustomerRepository implements CustomerRepository {
       description: _optionalString(data['description']) ?? '',
       price: price.toInt(),
       available: true,
+      imageUrl: _optionalString(data['imageUrl']),
+      categoryId: _optionalString(data['categoryId']),
+      categoryName: _optionalString(data['categoryName']),
     );
   }
 
@@ -388,15 +416,25 @@ class FirestoreCustomerRepository implements CustomerRepository {
               quantity is! num) {
             return null;
           }
+          final categoryName = _optionalString(line['categoryName']);
+          final category =
+              categoryName ?? _optionalString(line['category']) ?? 'Menu';
+          final notes =
+              _optionalString(line['notes']) ?? _optionalString(line['note']);
           return CartLine(
             item: MenuItem(
               id: itemId,
-              category: line['category'] as String? ?? 'Menu',
+              category: category,
               name: name,
-              description: line['description'] as String? ?? '',
+              description: _optionalString(line['description']) ?? '',
               price: price.toInt(),
+              imageUrl: _optionalString(line['imageUrl']),
+              categoryId: _optionalString(line['categoryId']),
+              categoryName: categoryName,
             ),
             quantity: quantity.toInt(),
+            notes: notes,
+            note: notes,
           );
         })
         .whereType<CartLine>()

@@ -146,6 +146,7 @@ class MenuRepositoryImpl implements MenuRepository {
     for (final document in documents) {
       final data = document.data();
       final category =
+          _optionalString(data['categoryName']) ??
           _optionalString(data['category']) ??
           _optionalString(data['categoryId']) ??
           'Menu';
@@ -217,6 +218,7 @@ class MenuRepositoryImpl implements MenuRepository {
     if (!available) return null;
 
     final category =
+        _optionalString(data['categoryName']) ??
         _optionalString(data['category']) ??
         _optionalString(data['categoryId']) ??
         'Menu';
@@ -236,6 +238,7 @@ class MenuRepositoryImpl implements MenuRepository {
       name: name,
       description: _optionalString(data['description']),
       imageUrl: _optionalString(data['imageUrl']),
+      categoryName: _optionalString(data['categoryName']),
       price: price.toInt(),
       displayOrder: _integer(data['displayOrder']) ?? displayOrder,
       isAvailable: true,

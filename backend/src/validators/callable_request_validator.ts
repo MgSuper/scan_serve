@@ -4,6 +4,9 @@ import type { ApiRequest } from '../shared/api/contracts';
 export interface SubmitOrderItem {
   menuItemId: string;
   quantity: number;
+  /** Canonical order-item note field. */
+  notes?: string;
+  /** Legacy singular field accepted for backwards compatibility. */
   note?: string;
   modifiers?: string[];
 }
@@ -58,9 +61,9 @@ const parseItems = (value: unknown): SubmitOrderItem[] | undefined => {
     if (!Number.isSafeInteger(quantity) || (quantity as number) <= 0) {
       throw new ApplicationError('INVALID_REQUEST', 'Each order item quantity must be a positive integer.');
     }
-    const note = rawItem.note;
-    if (note !== undefined && note !== null && typeof note !== 'string') {
-      throw new ApplicationError('INVALID_REQUEST', 'Order item note must be a string.');
+    const notes = rawItem.notes ?? rawItem.note;
+    if (notes !== undefined && notes !== null && typeof notes !== 'string') {
+      throw new ApplicationError('INVALID_REQUEST', 'Order item notes must be a string.');
     }
     const modifiers = rawItem.modifiers;
     if (
@@ -73,7 +76,7 @@ const parseItems = (value: unknown): SubmitOrderItem[] | undefined => {
     return {
       menuItemId: requireString(rawItem, 'menuItemId'),
       quantity: quantity as number,
-      ...(note === undefined || note === null ? {} : { note }),
+      ...(notes === undefined || notes === null ? {} : { notes }),
       ...(modifiers === undefined || modifiers === null ? {} : { modifiers }),
     };
   });

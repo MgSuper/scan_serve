@@ -20,6 +20,9 @@ class MenuItem extends Equatable {
     required this.description,
     required this.price,
     this.available = true,
+    this.imageUrl,
+    this.categoryId,
+    this.categoryName,
   });
 
   final String id;
@@ -28,24 +31,51 @@ class MenuItem extends Equatable {
   final String description;
   final int price;
   final bool available;
+  final String? imageUrl;
+  final String? categoryId;
+  final String? categoryName;
 
   @override
-  List<Object> get props => [id, category, name, description, price, available];
+  List<Object?> get props => [
+    id,
+    category,
+    name,
+    description,
+    price,
+    available,
+    imageUrl,
+    categoryId,
+    categoryName,
+  ];
 }
 
 class CartLine extends Equatable {
-  const CartLine({required this.item, required this.quantity});
+  const CartLine({
+    required this.item,
+    required this.quantity,
+    this.notes,
+    this.note,
+  });
 
   final MenuItem item;
   final int quantity;
+  final String? notes;
 
+  /// Legacy singular field retained for existing cart/order documents.
+  final String? note;
+
+  String? get resolvedNotes => notes ?? note;
   int get total => item.price * quantity;
 
-  CartLine copyWith({int? quantity}) =>
-      CartLine(item: item, quantity: quantity ?? this.quantity);
+  CartLine copyWith({int? quantity, String? notes, String? note}) => CartLine(
+    item: item,
+    quantity: quantity ?? this.quantity,
+    notes: notes ?? this.notes,
+    note: note ?? this.note,
+  );
 
   @override
-  List<Object> get props => [item, quantity];
+  List<Object?> get props => [item, quantity, notes, note];
 }
 
 class CustomerOrder extends Equatable {

@@ -10,6 +10,9 @@ export interface MenuItem {
   readonly name: string;
   readonly description: string;
   readonly category: string;
+  readonly categoryId?: string | null;
+  readonly categoryName?: string | null;
+  readonly imageUrl?: string | null;
   readonly price: number;
   readonly availability: MenuAvailability;
   readonly archived: boolean;
@@ -21,6 +24,9 @@ export interface CreateMenuItemInput {
   readonly name: string;
   readonly description: string;
   readonly category: string;
+  readonly categoryId?: string | null;
+  readonly categoryName?: string | null;
+  readonly imageUrl?: string | null;
   readonly price: number;
   readonly availability: MenuAvailability;
 }

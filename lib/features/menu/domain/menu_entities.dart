@@ -56,6 +56,7 @@ class MenuItem {
     required this.metadata,
     this.description,
     this.imageUrl,
+    this.categoryName,
   });
   final String id;
   final String restaurantId;
@@ -65,6 +66,7 @@ class MenuItem {
   final String name;
   final String? description;
   final String? imageUrl;
+  final String? categoryName;
   final int price;
   final int displayOrder;
   final bool isAvailable;

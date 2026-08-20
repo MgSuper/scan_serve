@@ -2,11 +2,122 @@ import 'package:scan_serve/features/ordering/data/ordering_dtos.dart';
 import 'package:scan_serve/features/ordering/domain/ordering_entities.dart';
 import 'package:scan_serve/shared/data/firestore/firestore_metadata_dto.dart';
 
-extension CartItemDtoMapper on CartItemDto { CartItem toDomain() => CartItem(menuItemId: menuItemId, name: name, unitPrice: unitPrice, quantity: quantity, note: note, modifiers: List.unmodifiable(modifiers)); }
-extension CartItemMapper on CartItem { CartItemDto toDto() => CartItemDto(menuItemId: menuItemId, name: name, unitPrice: unitPrice, quantity: quantity, note: note, modifiers: List.unmodifiable(modifiers)); }
-extension CartDtoMapper on CartDto { Cart toDomain() => Cart(id: id, restaurantId: restaurantId, branchId: branchId, tableId: tableId, tableSessionId: tableSessionId, customerSessionId: customerSessionId, items: List.unmodifiable(items.map((item) => item.toDomain())), metadata: metadata.toDomain()); }
-extension CartMapper on Cart { CartDto toDto() => CartDto(id: id, restaurantId: restaurantId, branchId: branchId, tableId: tableId, tableSessionId: tableSessionId, customerSessionId: customerSessionId, items: List.unmodifiable(items.map((item) => item.toDto())), metadata: FirestoreMetadataDto.fromDomain(metadata)); }
-extension OrderItemDtoMapper on OrderItemDto { OrderItem toDomain() => OrderItem(id: id, orderId: orderId, restaurantId: restaurantId, branchId: branchId, menuItemId: menuItemId, categoryId: categoryId, name: name, unitPrice: unitPrice, quantity: quantity, note: note, modifiers: List.unmodifiable(modifiers), metadata: metadata.toDomain()); }
-extension OrderItemMapper on OrderItem { OrderItemDto toDto() => OrderItemDto(id: id, orderId: orderId, restaurantId: restaurantId, branchId: branchId, menuItemId: menuItemId, categoryId: categoryId, name: name, unitPrice: unitPrice, quantity: quantity, note: note, modifiers: List.unmodifiable(modifiers), metadata: FirestoreMetadataDto.fromDomain(metadata)); }
-extension OrderDtoMapper on OrderDto { Order toDomain() => Order(id: id, restaurantId: restaurantId, branchId: branchId, tableId: tableId, tableSessionId: tableSessionId, customerSessionId: customerSessionId, status: OrderStatus.values.byName(status.toLowerCase()), items: List.unmodifiable(items.map((item) => item.toDomain())), customerNote: customerNote, metadata: metadata.toDomain()); }
-extension OrderMapper on Order { OrderDto toDto() => OrderDto(id: id, restaurantId: restaurantId, branchId: branchId, tableId: tableId, tableSessionId: tableSessionId, customerSessionId: customerSessionId, status: status.name.toUpperCase(), items: List.unmodifiable(items.map((item) => item.toDto())), customerNote: customerNote, metadata: FirestoreMetadataDto.fromDomain(metadata)); }
+extension CartItemDtoMapper on CartItemDto {
+  CartItem toDomain() => CartItem(
+    menuItemId: menuItemId,
+    name: name,
+    unitPrice: unitPrice,
+    quantity: quantity,
+    notes: notes ?? note,
+    note: note ?? notes,
+    modifiers: List.unmodifiable(modifiers),
+  );
+}
+
+extension CartItemMapper on CartItem {
+  CartItemDto toDto() => CartItemDto(
+    menuItemId: menuItemId,
+    name: name,
+    unitPrice: unitPrice,
+    quantity: quantity,
+    notes: notes ?? note,
+    note: note ?? notes,
+    modifiers: List.unmodifiable(modifiers),
+  );
+}
+
+extension CartDtoMapper on CartDto {
+  Cart toDomain() => Cart(
+    id: id,
+    restaurantId: restaurantId,
+    branchId: branchId,
+    tableId: tableId,
+    tableSessionId: tableSessionId,
+    customerSessionId: customerSessionId,
+    items: List.unmodifiable(items.map((item) => item.toDomain())),
+    metadata: metadata.toDomain(),
+  );
+}
+
+extension CartMapper on Cart {
+  CartDto toDto() => CartDto(
+    id: id,
+    restaurantId: restaurantId,
+    branchId: branchId,
+    tableId: tableId,
+    tableSessionId: tableSessionId,
+    customerSessionId: customerSessionId,
+    items: List.unmodifiable(items.map((item) => item.toDto())),
+    metadata: FirestoreMetadataDto.fromDomain(metadata),
+  );
+}
+
+extension OrderItemDtoMapper on OrderItemDto {
+  OrderItem toDomain() => OrderItem(
+    id: id,
+    orderId: orderId,
+    restaurantId: restaurantId,
+    branchId: branchId,
+    menuItemId: menuItemId,
+    categoryId: categoryId,
+    categoryName: categoryName,
+    imageUrl: imageUrl,
+    name: name,
+    unitPrice: unitPrice,
+    quantity: quantity,
+    notes: notes ?? note,
+    note: note ?? notes,
+    modifiers: List.unmodifiable(modifiers),
+    metadata: metadata.toDomain(),
+  );
+}
+
+extension OrderItemMapper on OrderItem {
+  OrderItemDto toDto() => OrderItemDto(
+    id: id,
+    orderId: orderId,
+    restaurantId: restaurantId,
+    branchId: branchId,
+    menuItemId: menuItemId,
+    categoryId: categoryId,
+    categoryName: categoryName,
+    imageUrl: imageUrl,
+    name: name,
+    unitPrice: unitPrice,
+    quantity: quantity,
+    notes: notes ?? note,
+    note: note ?? notes,
+    modifiers: List.unmodifiable(modifiers),
+    metadata: FirestoreMetadataDto.fromDomain(metadata),
+  );
+}
+
+extension OrderDtoMapper on OrderDto {
+  Order toDomain() => Order(
+    id: id,
+    restaurantId: restaurantId,
+    branchId: branchId,
+    tableId: tableId,
+    tableSessionId: tableSessionId,
+    customerSessionId: customerSessionId,
+    status: OrderStatus.values.byName(status.toLowerCase()),
+    items: List.unmodifiable(items.map((item) => item.toDomain())),
+    customerNote: customerNote,
+    metadata: metadata.toDomain(),
+  );
+}
+
+extension OrderMapper on Order {
+  OrderDto toDto() => OrderDto(
+    id: id,
+    restaurantId: restaurantId,
+    branchId: branchId,
+    tableId: tableId,
+    tableSessionId: tableSessionId,
+    customerSessionId: customerSessionId,
+    status: status.name.toUpperCase(),
+    items: List.unmodifiable(items.map((item) => item.toDto())),
+    customerNote: customerNote,
+    metadata: FirestoreMetadataDto.fromDomain(metadata),
+  );
+}

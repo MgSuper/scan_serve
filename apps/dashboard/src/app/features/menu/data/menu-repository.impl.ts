@@ -31,6 +31,8 @@ interface MenuItemDto {
   readonly description?: unknown;
   readonly category?: unknown;
   readonly categoryId?: unknown;
+  readonly categoryName?: unknown;
+  readonly imageUrl?: unknown;
   readonly price?: unknown;
   readonly availability?: unknown;
   readonly status?: unknown;
@@ -130,6 +132,9 @@ export class MenuRepositoryImpl extends MenuRepository {
           name: input.name.trim(),
           description: input.description.trim(),
           category: input.category.trim(),
+          categoryId: input.categoryId?.trim() || null,
+          categoryName: input.categoryName?.trim() || input.category.trim(),
+          imageUrl: input.imageUrl?.trim() || null,
           price: input.price,
           availability: input.availability,
           status: input.availability,
@@ -148,6 +153,9 @@ export class MenuRepositoryImpl extends MenuRepository {
         name: input.name.trim(),
         description: input.description.trim(),
         category: input.category.trim(),
+        categoryId: input.categoryId?.trim() || null,
+        categoryName: input.categoryName?.trim() || input.category.trim(),
+        imageUrl: input.imageUrl?.trim() || null,
         price: input.price,
         availability: input.availability,
         archived: false,
@@ -174,6 +182,9 @@ export class MenuRepositoryImpl extends MenuRepository {
             name: input.name.trim(),
             description: input.description.trim(),
             category: input.category.trim(),
+            categoryId: input.categoryId?.trim() || null,
+            categoryName: input.categoryName?.trim() || input.category.trim(),
+            imageUrl: input.imageUrl?.trim() || null,
             price: input.price,
             availability: input.availability,
             status: input.availability,
@@ -274,11 +285,16 @@ function toMenuItem(dto: MenuItemDto, fallbackRestaurantId: string): MenuItem | 
     name: dto.name,
     description: typeof dto.description === 'string' ? dto.description : '',
     category:
-      typeof dto.category === 'string' && dto.category.trim().length > 0
-        ? dto.category
-        : typeof dto.categoryId === 'string' && dto.categoryId.trim().length > 0
-          ? dto.categoryId
-          : 'Uncategorized',
+      typeof dto.categoryName === 'string' && dto.categoryName.trim().length > 0
+        ? dto.categoryName
+        : typeof dto.category === 'string' && dto.category.trim().length > 0
+          ? dto.category
+          : typeof dto.categoryId === 'string' && dto.categoryId.trim().length > 0
+            ? dto.categoryId
+            : 'Uncategorized',
+    categoryId: typeof dto.categoryId === 'string' ? dto.categoryId : null,
+    categoryName: typeof dto.categoryName === 'string' ? dto.categoryName : null,
+    imageUrl: typeof dto.imageUrl === 'string' ? dto.imageUrl : null,
     price: dto.price,
     availability,
     archived: dto.archived === true,
