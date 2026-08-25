@@ -220,8 +220,11 @@ class _SubmittedView extends StatelessWidget {
 
     if (!context.mounted) return;
     final navigator = Navigator.of(context);
+    final modalRoute = ModalRoute.of(context);
     navigator.pop();
-    await Future<void>.delayed(Duration.zero);
+    if (modalRoute != null) {
+      await modalRoute.completed;
+    }
     router.go(destination);
   }
 }
