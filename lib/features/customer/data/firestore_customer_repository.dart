@@ -15,6 +15,7 @@ class FirestoreCustomerRepository implements CustomerRepository {
     String? branchId,
     String? tableSessionId,
     String? customerSessionId,
+    String? tableToken,
   }) : _firestore = firestore,
        _functions = functions,
        restaurantId = _normalizeIdentifier(
@@ -32,7 +33,8 @@ class FirestoreCustomerRepository implements CustomerRepository {
        customerSessionId = _normalizeIdentifier(
          customerSessionId,
          ScanServeFirestoreContract.customerSessionId,
-       );
+       ),
+       tableToken = tableToken?.trim() ?? '';
 
   final FirebaseFirestore _firestore;
   final FirebaseFunctions _functions;
@@ -41,6 +43,7 @@ class FirestoreCustomerRepository implements CustomerRepository {
   final String tableId;
   final String tableSessionId;
   final String customerSessionId;
+  final String tableToken;
 
   static String _normalizeIdentifier(String? value, String fallback) {
     final normalized = value?.trim();
@@ -79,6 +82,7 @@ class FirestoreCustomerRepository implements CustomerRepository {
           in _orders
               .where('tableId', isEqualTo: tableId)
               .where('customerSessionId', isEqualTo: customerSessionId)
+              .where('tableSessionId', isEqualTo: tableSessionId)
               .where(
                 'status',
                 whereIn: const ['PENDING', 'ACCEPTED', 'PREPARING', 'READY'],
@@ -138,6 +142,7 @@ class FirestoreCustomerRepository implements CustomerRepository {
           'branchId': branchId,
           'tableId': tableId,
           'tableSessionId': tableSessionId,
+          'tableToken': tableToken,
           'items': canonicalLines
               .map(
                 (line) => <String, Object?>{
@@ -211,6 +216,7 @@ class FirestoreCustomerRepository implements CustomerRepository {
       'tableId': tableId,
       'tableSessionId': tableSessionId,
       'customerSessionId': customerSessionId,
+      'tableToken': tableToken,
       'items': items,
       'totalQuantity': lines.fold<int>(
         0,
@@ -300,6 +306,7 @@ class FirestoreCustomerRepository implements CustomerRepository {
       'branchId': branchId,
       'tableId': tableId,
       'tableSessionId': tableSessionId,
+      'tableToken': tableToken,
       'status': 'ACTIVE',
       'isActive': true,
       'isArchived': false,

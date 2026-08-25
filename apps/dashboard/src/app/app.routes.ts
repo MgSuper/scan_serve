@@ -46,6 +46,27 @@ export const routes: Routes = [
     ],
   },
   {
+    path: 'tables',
+    canActivate: [authGuard],
+    canActivateChild: [authGuard],
+    children: [
+      {
+        path: '',
+        loadComponent: () =>
+          import('./features/tables/presentation/components/table-management.component').then(
+            ({ TableManagementComponent }) => TableManagementComponent,
+          ),
+      },
+      {
+        path: ':restaurantId',
+        loadComponent: () =>
+          import('./features/tables/presentation/components/table-management.component').then(
+            ({ TableManagementComponent }) => TableManagementComponent,
+          ),
+      },
+    ],
+  },
+  {
     path: '**',
     redirectTo: `kitchen/${DEFAULT_RESTAURANT_ID}`,
   },

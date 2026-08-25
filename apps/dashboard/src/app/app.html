@@ -3,6 +3,7 @@
   <nav class="workspace-nav" aria-label="Dashboard sections">
     <a [routerLink]="['/kitchen', defaultRestaurantId]">Kitchen</a>
     <a [routerLink]="['/menu', defaultRestaurantId]">Menu</a>
+    <a [routerLink]="['/tables', defaultRestaurantId]">Tables & QR</a>
     @if (authService.isAuthenticated()) {
       <button type="button" class="logout-button" (click)="logout()">Logout</button>
     }

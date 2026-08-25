@@ -16,6 +16,8 @@ import { WatchKitchenQueueUseCase } from './features/kitchen/domain/use-cases/wa
 import { KitchenRepositoryImpl } from './features/kitchen/data/kitchen-repository.impl';
 import { MenuCategoryRepositoryImpl } from './features/menu/data/menu-category-repository.impl';
 import { MenuRepositoryImpl } from './features/menu/data/menu-repository.impl';
+import { TableRepository } from './features/tables/domain/table';
+import { TableRepositoryImpl } from './features/tables/data/table-repository.impl';
 import { routes } from './app.routes';
 
 export const appConfig: ApplicationConfig = {
@@ -47,6 +49,7 @@ export const appConfig: ApplicationConfig = {
     { provide: KitchenRepository, useClass: KitchenRepositoryImpl },
     { provide: MenuRepository, useClass: MenuRepositoryImpl },
     { provide: MenuCategoryRepository, useClass: MenuCategoryRepositoryImpl },
+    { provide: TableRepository, useClass: TableRepositoryImpl },
     { provide: WatchKitchenQueueUseCase, useClass: WatchKitchenQueueUseCase },
     { provide: UpdateOrderStatusUseCase, useClass: UpdateOrderStatusUseCase },
     { provide: WatchAssistanceRequestsUseCase, useClass: WatchAssistanceRequestsUseCase },
