@@ -55,6 +55,10 @@ void main() {
       find.descendant(of: drawer, matching: find.text('Desserts')),
       findsOneWidget,
     );
+    expect(
+      find.descendant(of: drawer, matching: find.byIcon(Icons.expand_more)),
+      findsOneWidget,
+    );
     expect(find.text('2'), findsOneWidget);
     expect(
       find.descendant(of: drawer, matching: find.text('Seasonal Desserts')),

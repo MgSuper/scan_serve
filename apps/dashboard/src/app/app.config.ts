@@ -8,7 +8,9 @@ import { connectFunctionsEmulator, getFunctions, provideFunctions } from '@angul
 import { environment } from '../environments/environment';
 import { KitchenRepository } from './features/kitchen/domain/kitchen-repository';
 import { MenuRepository } from './features/menu/domain/menu-item';
+import { ResolveAssistanceRequestUseCase } from './features/kitchen/domain/use-cases/resolve-assistance-request.use-case';
 import { UpdateOrderStatusUseCase } from './features/kitchen/domain/use-cases/update-order-status.use-case';
+import { WatchAssistanceRequestsUseCase } from './features/kitchen/domain/use-cases/watch-assistance-requests.use-case';
 import { WatchKitchenQueueUseCase } from './features/kitchen/domain/use-cases/watch-kitchen-queue.use-case';
 import { KitchenRepositoryImpl } from './features/kitchen/data/kitchen-repository.impl';
 import { MenuRepositoryImpl } from './features/menu/data/menu-repository.impl';
@@ -44,5 +46,7 @@ export const appConfig: ApplicationConfig = {
     { provide: MenuRepository, useClass: MenuRepositoryImpl },
     { provide: WatchKitchenQueueUseCase, useClass: WatchKitchenQueueUseCase },
     { provide: UpdateOrderStatusUseCase, useClass: UpdateOrderStatusUseCase },
+    { provide: WatchAssistanceRequestsUseCase, useClass: WatchAssistanceRequestsUseCase },
+    { provide: ResolveAssistanceRequestUseCase, useClass: ResolveAssistanceRequestUseCase },
   ],
 };

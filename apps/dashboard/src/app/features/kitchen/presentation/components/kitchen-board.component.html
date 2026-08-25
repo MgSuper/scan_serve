@@ -20,7 +20,7 @@
     <div>
       <p class="eyebrow">Operations</p>
       <h1 id="kitchen-title">Kitchen queue</h1>
-      <p class="subtitle">Monitor active orders and move them through preparation.</p>
+      <p class="subtitle">Monitor table orders and move them through preparation and service.</p>
     </div>
 
     <div class="filters" aria-label="Order filters">
@@ -37,6 +37,47 @@
       }
     </div>
   </header>
+
+  <section class="assistance-panel" aria-labelledby="assistance-title">
+    <div class="section-header">
+      <div>
+        <p class="eyebrow">Front of house</p>
+        <h2 id="assistance-title">Staff assistance</h2>
+      </div>
+      <span class="count" aria-label="Open assistance requests">
+        {{ store.assistanceRequests().length }}
+      </span>
+    </div>
+
+    <div class="assistance-list">
+      @for (request of store.assistanceRequests(); track request.id) {
+        <article class="assistance-card" [class.payment-request]="request.type === 'PAYMENT'">
+          <div class="assistance-card-header">
+            <span class="assistance-type">{{ request.type }}</span>
+            <time [attr.datetime]="request.createdAt.toISOString()">
+              {{ formatRequestTime(request.createdAt) }}
+            </time>
+          </div>
+          <strong>Table {{ request.tableId }}</strong>
+          <p>{{ assistanceLabel(request.type) }}</p>
+          <button
+            type="button"
+            class="action-button"
+            [disabled]="store.isResolvingAssistance(request.id)"
+            (click)="resolveAssistance(request)"
+          >
+            @if (store.isResolvingAssistance(request.id)) {
+              Resolving…
+            } @else {
+              Resolve request
+            }
+          </button>
+        </article>
+      } @empty {
+        <p class="empty-assistance">No open waiter or payment calls.</p>
+      }
+    </div>
+  </section>
 
   @if (store.error(); as error) {
     <div class="error-banner" role="alert">
@@ -79,21 +120,25 @@
                   @if (order.customerNote) {
                     <p class="customer-note">“{{ order.customerNote }}”</p>
                   }
-                  <button
-                    type="button"
-                    class="action-button"
-                    [disabled]="store.isUpdating(order.id)"
-                    (click)="$event.stopPropagation(); advanceOrder(order)"
-                  >
-                    @if (store.isUpdating(order.id)) {
-                      Updating…
-                    } @else {
-                      {{ actionLabel(order.status) }}
-                    }
-                  </button>
+                  @if (order.status !== 'SERVED') {
+                    <button
+                      type="button"
+                      class="action-button"
+                      [disabled]="store.isUpdating(order.id)"
+                      (click)="$event.stopPropagation(); advanceOrder(order)"
+                    >
+                      @if (store.isUpdating(order.id)) {
+                        Updating…
+                      } @else {
+                        {{ actionLabel(order.status) }}
+                      }
+                    </button>
+                  } @else {
+                    <span class="served-label">Served</span>
+                  }
                 </article>
               } @empty {
-                <p class="empty-column">No active orders.</p>
+                <p class="empty-column">No orders in this stage.</p>
               }
             </div>
           </section>
@@ -137,14 +182,16 @@
           @if (selectedOrder.customerNote) {
             <p class="detail-note">{{ selectedOrder.customerNote }}</p>
           }
-          <button
-            type="button"
-            class="action-button full-width"
-            [disabled]="store.isUpdating(selectedOrder.id)"
-            (click)="advanceOrder(selectedOrder)"
-          >
-            {{ actionLabel(selectedOrder.status) }}
-          </button>
+          @if (selectedOrder.status !== 'SERVED') {
+            <button
+              type="button"
+              class="action-button full-width"
+              [disabled]="store.isUpdating(selectedOrder.id)"
+              (click)="advanceOrder(selectedOrder)"
+            >
+              {{ actionLabel(selectedOrder.status) }}
+            </button>
+          }
         </aside>
       }
     </div>

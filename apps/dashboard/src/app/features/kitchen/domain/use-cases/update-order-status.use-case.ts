@@ -17,7 +17,8 @@ export class UpdateOrderStatusUseCase {
     if (!restaurantId.trim() || !orderId.trim()) {
       throw new Error('Restaurant and order identifiers are required.');
     }
-    if (NEXT_KITCHEN_STATUS[currentStatus] !== nextStatus) {
+    const expectedNextStatus = NEXT_KITCHEN_STATUS[currentStatus];
+    if (expectedNextStatus === null || expectedNextStatus !== nextStatus) {
       throw new Error(`Order ${orderId} cannot transition from ${currentStatus} to ${nextStatus}.`);
     }
     return this.repository.updateOrderStatus(restaurantId, orderId, currentStatus, nextStatus);

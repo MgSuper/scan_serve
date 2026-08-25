@@ -11,10 +11,7 @@ import {
 } from '@angular/fire/firestore';
 import { catchError, from, map, Observable, of, startWith, throwError } from 'rxjs';
 
-import {
-  DEFAULT_BRANCH_ID,
-  normalizeRestaurantId,
-} from '../../../shared/restaurant-context';
+import { DEFAULT_BRANCH_ID, normalizeRestaurantId } from '../../../shared/restaurant-context';
 import {
   CreateMenuItemInput,
   MenuAvailability,
@@ -90,10 +87,7 @@ export class MenuRepositoryImpl extends MenuRepository {
     return from(
       runInInjectionContext(this.injector, async () => {
         const timestamp = serverTimestamp();
-        const restaurantReference = doc(
-          this.firestore,
-          `restaurants/${resolvedRestaurantId}`,
-        );
+        const restaurantReference = doc(this.firestore, `restaurants/${resolvedRestaurantId}`);
         const branchReference = doc(
           this.firestore,
           `restaurants/${resolvedRestaurantId}/branches/${DEFAULT_BRANCH_ID}`,
@@ -176,22 +170,19 @@ export class MenuRepositoryImpl extends MenuRepository {
     const resolvedRestaurantId = normalizeRestaurantId(restaurantId);
     return from(
       runInInjectionContext(this.injector, () =>
-        updateDoc(
-          doc(this.firestore, `restaurants/${resolvedRestaurantId}/menu/${itemId}`),
-          {
-            name: input.name.trim(),
-            description: input.description.trim(),
-            category: input.category.trim(),
-            categoryId: input.categoryId?.trim() || null,
-            categoryName: input.categoryName?.trim() || input.category.trim(),
-            imageUrl: input.imageUrl?.trim() || null,
-            price: input.price,
-            availability: input.availability,
-            status: input.availability,
-            isAvailable: input.availability === 'in_stock',
-            updatedAt: serverTimestamp(),
-          },
-        ),
+        updateDoc(doc(this.firestore, `restaurants/${resolvedRestaurantId}/menu/${itemId}`), {
+          name: input.name.trim(),
+          description: input.description.trim(),
+          category: input.category.trim(),
+          categoryId: input.categoryId?.trim() || null,
+          categoryName: input.categoryName?.trim() || input.category.trim(),
+          imageUrl: input.imageUrl?.trim() || null,
+          price: input.price,
+          availability: input.availability,
+          status: input.availability,
+          isAvailable: input.availability === 'in_stock',
+          updatedAt: serverTimestamp(),
+        }),
       ),
     ).pipe(
       map(() => undefined),
@@ -205,16 +196,13 @@ export class MenuRepositoryImpl extends MenuRepository {
     const resolvedRestaurantId = normalizeRestaurantId(restaurantId);
     return from(
       runInInjectionContext(this.injector, () =>
-        updateDoc(
-          doc(this.firestore, `restaurants/${resolvedRestaurantId}/menu/${itemId}`),
-          {
-            archived: true,
-            availability: 'out_of_stock',
-            status: 'out_of_stock',
-            isAvailable: false,
-            updatedAt: serverTimestamp(),
-          },
-        ),
+        updateDoc(doc(this.firestore, `restaurants/${resolvedRestaurantId}/menu/${itemId}`), {
+          archived: true,
+          availability: 'out_of_stock',
+          status: 'out_of_stock',
+          isAvailable: false,
+          updatedAt: serverTimestamp(),
+        }),
       ),
     ).pipe(
       map(() => undefined),
@@ -232,15 +220,12 @@ export class MenuRepositoryImpl extends MenuRepository {
     const resolvedRestaurantId = normalizeRestaurantId(restaurantId);
     return from(
       runInInjectionContext(this.injector, () =>
-        updateDoc(
-          doc(this.firestore, `restaurants/${resolvedRestaurantId}/menu/${itemId}`),
-          {
-            availability,
-            status: availability,
-            isAvailable: availability === 'in_stock',
-            updatedAt: serverTimestamp(),
-          },
-        ),
+        updateDoc(doc(this.firestore, `restaurants/${resolvedRestaurantId}/menu/${itemId}`), {
+          availability,
+          status: availability,
+          isAvailable: availability === 'in_stock',
+          updatedAt: serverTimestamp(),
+        }),
       ),
     ).pipe(
       map(() => undefined),

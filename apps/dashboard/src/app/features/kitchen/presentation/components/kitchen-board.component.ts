@@ -11,7 +11,13 @@ import { ActivatedRoute } from '@angular/router';
 import { distinctUntilChanged, map } from 'rxjs';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 
-import { KitchenOrder, KitchenOrderStatus, NEXT_KITCHEN_STATUS } from '../../domain/kitchen-order';
+import {
+  KITCHEN_ORDER_STATUSES,
+  KitchenOrder,
+  KitchenOrderStatus,
+  NEXT_KITCHEN_STATUS,
+} from '../../domain/kitchen-order';
+import { StaffAssistanceRequest } from '../../domain/staff-assistance-request';
 import { KitchenAudioNotificationService } from './kitchen-audio-notification.service';
 import { KitchenFilter, KitchenStore } from '../state/kitchen.store';
 
@@ -30,7 +36,7 @@ interface NewOrderNotification {
 })
 export class KitchenBoardComponent implements OnDestroy {
   readonly store = inject(KitchenStore);
-  readonly filters: readonly KitchenFilter[] = ['ALL', 'PENDING', 'ACCEPTED', 'PREPARING'];
+  readonly filters: readonly KitchenFilter[] = ['ALL', ...KITCHEN_ORDER_STATUSES];
   readonly newOrderIds = signal<ReadonlySet<string>>(new Set<string>());
   readonly toast = signal<NewOrderNotification | null>(null);
 
@@ -83,6 +89,21 @@ export class KitchenBoardComponent implements OnDestroy {
     this.store.advanceOrder(order);
   }
 
+  resolveAssistance(request: StaffAssistanceRequest): void {
+    this.store.resolveAssistance(request);
+  }
+
+  assistanceLabel(type: StaffAssistanceRequest['type']): string {
+    return type === 'PAYMENT' ? 'Payment assistance' : 'Waiter assistance';
+  }
+
+  formatRequestTime(date: Date): string {
+    return new Intl.DateTimeFormat('en-US', {
+      hour: 'numeric',
+      minute: '2-digit',
+    }).format(date);
+  }
+
   dismissToast(): void {
     if (this.toastTimer) {
       clearTimeout(this.toastTimer);
@@ -92,7 +113,8 @@ export class KitchenBoardComponent implements OnDestroy {
   }
 
   actionLabel(status: KitchenOrderStatus): string {
-    return `Move to ${NEXT_KITCHEN_STATUS[status]}`;
+    const nextStatus = NEXT_KITCHEN_STATUS[status];
+    return nextStatus === null ? 'Served' : `Move to ${nextStatus}`;
   }
 
   formatCurrency(value: number): string {

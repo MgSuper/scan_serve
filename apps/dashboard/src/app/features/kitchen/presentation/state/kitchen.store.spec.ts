@@ -2,7 +2,9 @@ import { TestBed } from '@angular/core/testing';
 import { of } from 'rxjs';
 
 import { KitchenOrder } from '../../domain/kitchen-order';
+import { ResolveAssistanceRequestUseCase } from '../../domain/use-cases/resolve-assistance-request.use-case';
 import { UpdateOrderStatusUseCase } from '../../domain/use-cases/update-order-status.use-case';
+import { WatchAssistanceRequestsUseCase } from '../../domain/use-cases/watch-assistance-requests.use-case';
 import { WatchKitchenQueueUseCase } from '../../domain/use-cases/watch-kitchen-queue.use-case';
 import { KitchenStore } from './kitchen.store';
 
@@ -33,6 +35,14 @@ describe('KitchenStore', () => {
         },
         {
           provide: UpdateOrderStatusUseCase,
+          useValue: { execute: () => of(undefined) },
+        },
+        {
+          provide: WatchAssistanceRequestsUseCase,
+          useValue: { execute: () => of([]) },
+        },
+        {
+          provide: ResolveAssistanceRequestUseCase,
           useValue: { execute: () => of(undefined) },
         },
       ],

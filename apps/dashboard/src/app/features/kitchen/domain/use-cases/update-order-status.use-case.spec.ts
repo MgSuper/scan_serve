@@ -2,6 +2,7 @@ import { firstValueFrom, of } from 'rxjs';
 
 import { KitchenRepository } from '../kitchen-repository';
 import { KitchenOrderStatus, KitchenNextStatus } from '../kitchen-order';
+import { StaffAssistanceRequest } from '../staff-assistance-request';
 import { UpdateOrderStatusUseCase } from './update-order-status.use-case';
 
 describe('UpdateOrderStatusUseCase', () => {
@@ -49,6 +50,14 @@ class FakeKitchenRepository extends KitchenRepository {
     nextStatus: KitchenNextStatus,
   ) {
     this.lastUpdate = { restaurantId, orderId, currentStatus, nextStatus };
+    return of(undefined);
+  }
+
+  override watchAssistanceRequests() {
+    return of([] as readonly StaffAssistanceRequest[]);
+  }
+
+  override resolveAssistanceRequest() {
     return of(undefined);
   }
 }

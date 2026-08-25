@@ -433,13 +433,17 @@ class _CategoryTreeTile extends StatelessWidget {
           child: title,
         ),
       ),
-      childrenPadding: const EdgeInsetsDirectional.only(start: 24),
+      trailing: const Icon(Icons.expand_more),
+      childrenPadding: EdgeInsets.zero,
       children: node.children
           .map(
-            (child) => _CategoryTreeTile(
-              node: child,
-              selectedCategoryName: selectedCategoryName,
-              onCategorySelected: onCategorySelected,
+            (child) => Padding(
+              padding: const EdgeInsets.only(left: 16.0),
+              child: _CategoryTreeTile(
+                node: child,
+                selectedCategoryName: selectedCategoryName,
+                onCategorySelected: onCategorySelected,
+              ),
             ),
           )
           .toList(growable: false),

@@ -1,5 +1,14 @@
 import { inject, Injectable, Injector, runInInjectionContext } from '@angular/core';
-import { collection, Firestore, onSnapshot, query, where } from '@angular/fire/firestore';
+import {
+  collection,
+  doc,
+  Firestore,
+  onSnapshot,
+  query,
+  serverTimestamp,
+  updateDoc,
+  where,
+} from '@angular/fire/firestore';
 import { Functions, httpsCallable } from '@angular/fire/functions';
 import { catchError, from, map, Observable, of, throwError } from 'rxjs';
 
@@ -11,7 +20,9 @@ import {
   KitchenOrderStatus,
 } from '../domain/kitchen-order';
 import { KitchenRepository } from '../domain/kitchen-repository';
+import { StaffAssistanceRequest } from '../domain/staff-assistance-request';
 import { KitchenOrderDto, toKitchenOrder } from './kitchen-order.mapper';
+import { StaffAssistanceRequestDto, toStaffAssistanceRequest } from './staff-assistance.mapper';
 
 interface UpdateOrderStatusRequest {
   readonly requestId: string;
@@ -77,6 +88,70 @@ export class KitchenRepositoryImpl extends KitchenRepository {
         }),
       );
     });
+  }
+
+  watchAssistanceRequests(restaurantId: string): Observable<readonly StaffAssistanceRequest[]> {
+    const resolvedRestaurantId = normalizeRestaurantId(restaurantId);
+
+    return runInInjectionContext(this.injector, () => {
+      return new Observable<StaffAssistanceRequestDto[]>((observer) => {
+        const requestsQuery = query(
+          collection(this.firestore, `restaurants/${resolvedRestaurantId}/waiterRequests`),
+          where('status', 'in', ['OPEN', 'ACKNOWLEDGED']),
+        );
+
+        const unsubscribe = onSnapshot(
+          requestsQuery,
+          (snapshot) => {
+            const documents = snapshot.docs.map(
+              (snapshotDocument) =>
+                ({
+                  id: snapshotDocument.id,
+                  ...snapshotDocument.data(),
+                }) as StaffAssistanceRequestDto,
+            );
+            observer.next(documents);
+          },
+          (error) => observer.error(error),
+        );
+
+        return () => unsubscribe();
+      }).pipe(
+        map((documents) =>
+          documents
+            .map((document) => toStaffAssistanceRequest(document))
+            .filter((request): request is StaffAssistanceRequest => request !== null)
+            .sort((left, right) => left.createdAt.getTime() - right.createdAt.getTime()),
+        ),
+        catchError((error: unknown) => {
+          console.error('[Firestore Assistance Stream Error]', error);
+          return of([] as readonly StaffAssistanceRequest[]);
+        }),
+      );
+    });
+  }
+
+  resolveAssistanceRequest(restaurantId: string, requestId: string): Observable<void> {
+    const resolvedRestaurantId = normalizeRestaurantId(restaurantId);
+    const requestReference = runInInjectionContext(this.injector, () =>
+      doc(this.firestore, `restaurants/${resolvedRestaurantId}/waiterRequests/${requestId}`),
+    );
+
+    return from(
+      runInInjectionContext(this.injector, () =>
+        updateDoc(requestReference, {
+          status: 'RESOLVED',
+          resolvedAt: serverTimestamp(),
+        }),
+      ),
+    ).pipe(
+      map(() => undefined),
+      catchError((error: unknown) =>
+        throwError(() =>
+          error instanceof Error ? error : new Error('Unable to resolve the assistance request.'),
+        ),
+      ),
+    );
   }
 
   updateOrderStatus(
