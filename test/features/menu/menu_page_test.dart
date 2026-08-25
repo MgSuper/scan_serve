@@ -55,17 +55,20 @@ void main() {
       find.descendant(of: drawer, matching: find.text('Desserts')),
       findsOneWidget,
     );
-    expect(
-      find.descendant(of: drawer, matching: find.byIcon(Icons.expand_more)),
-      findsOneWidget,
-    );
+    final mainsTile = find.widgetWithText(ExpansionTile, 'Mains');
+    expect(mainsTile, findsOneWidget);
     expect(find.text('2'), findsOneWidget);
     expect(
       find.descendant(of: drawer, matching: find.text('Seasonal Desserts')),
       findsNothing,
     );
 
-    await tester.tap(find.byIcon(Icons.expand_more));
+    final mainsChevron = find.descendant(
+      of: mainsTile,
+      matching: find.byIcon(Icons.expand_more),
+    );
+    expect(mainsChevron, findsOneWidget);
+    await tester.tap(mainsChevron);
     await tester.pumpAndSettle();
 
     expect(
@@ -115,6 +118,10 @@ void main() {
       await tester.pumpAndSettle();
       expect(
         find.descendant(of: drawer, matching: find.text('Coffee')),
+        findsOneWidget,
+      );
+      expect(
+        find.descendant(of: drawer, matching: find.text('General')),
         findsOneWidget,
       );
 
@@ -383,6 +390,7 @@ MenuCatalog _createCatalogWithDynamicCoffee() {
     menuId: base.menu.id,
     categoryId: 'drinks-coffee',
     categoryName: 'Coffee',
+    parentCategoryId: 'drinks',
     name: 'Cold brew',
     price: 45000,
     displayOrder: 4,

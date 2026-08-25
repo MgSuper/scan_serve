@@ -58,6 +58,7 @@ class MenuItemDto {
     required this.metadata,
     this.description,
     this.imageUrl,
+    this.parentCategoryId,
   });
   final String id;
   final String restaurantId;
@@ -67,6 +68,7 @@ class MenuItemDto {
   final String name;
   final String? description;
   final String? imageUrl;
+  final String? parentCategoryId;
   final int price;
   final int displayOrder;
   final bool isAvailable;

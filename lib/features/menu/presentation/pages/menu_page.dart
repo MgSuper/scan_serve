@@ -660,8 +660,9 @@ class _CategoryNode {
   final String id;
   final String name;
   final int displayOrder;
-  final String? parentCategoryId;
+  String? parentCategoryId;
   int directItemCount = 0;
+  final Set<String> itemCategoryIds = <String>{};
   final List<_CategoryNode> children = <_CategoryNode>[];
 
   int get itemCount =>
@@ -669,6 +670,7 @@ class _CategoryNode {
 
   Set<String> get allCategoryIds => <String>{
     id,
+    ...itemCategoryIds,
     ...children.expand((child) => child.allCategoryIds),
   };
 
@@ -691,15 +693,34 @@ List<_CategoryNode> _buildCategoryTree(MenuCatalog catalog) {
 
   for (final item in catalog.items) {
     final categoryName = _categoryNameFor(catalog, item);
+    final itemParentCategoryId = item.parentCategoryId;
+    if (itemParentCategoryId != null &&
+        itemParentCategoryId != item.categoryId &&
+        !nodesById.containsKey(itemParentCategoryId)) {
+      nodesById[itemParentCategoryId] = _CategoryNode(
+        id: itemParentCategoryId,
+        name:
+            _categoryNameForId(catalog, itemParentCategoryId) ??
+            itemParentCategoryId,
+        displayOrder: catalog.items.indexOf(item),
+      );
+    }
     final node = nodesById.putIfAbsent(
       item.categoryId,
       () => _CategoryNode(
         id: item.categoryId,
         name: categoryName,
         displayOrder: catalog.items.indexOf(item),
+        parentCategoryId: itemParentCategoryId,
       ),
     );
+    if (node.parentCategoryId == null &&
+        itemParentCategoryId != null &&
+        itemParentCategoryId != node.id) {
+      node.parentCategoryId = itemParentCategoryId;
+    }
     node.directItemCount += 1;
+    node.itemCategoryIds.add(item.categoryId);
   }
 
   final roots = <_CategoryNode>[];
@@ -725,6 +746,24 @@ List<_CategoryNode> _buildCategoryTree(MenuCatalog catalog) {
     }
   }
 
+  void addGeneralChildren(List<_CategoryNode> nodes) {
+    for (final node in nodes) {
+      addGeneralChildren(node.children);
+      if (node.directItemCount == 0) continue;
+      final general = _CategoryNode(
+        id: '${node.id}__general',
+        name: 'General',
+        displayOrder: -1,
+        parentCategoryId: node.id,
+      );
+      general.directItemCount = node.directItemCount;
+      general.itemCategoryIds.add(node.id);
+      node.children.insert(0, general);
+      node.directItemCount = 0;
+    }
+  }
+
+  addGeneralChildren(roots);
   sortNodes(roots);
   return roots;
 }
@@ -738,6 +777,13 @@ _CategoryNode? _findCategoryNode(
     if (node.id == categoryId) return node;
     final match = _findCategoryNode(node.children, categoryId);
     if (match != null) return match;
+  }
+  return null;
+}
+
+String? _categoryNameForId(MenuCatalog catalog, String categoryId) {
+  for (final category in catalog.categories) {
+    if (category.id == categoryId) return category.name;
   }
   return null;
 }

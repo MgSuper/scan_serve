@@ -59,6 +59,7 @@ class MenuItem {
     this.description,
     this.imageUrl,
     this.categoryName,
+    this.parentCategoryId,
   });
   final String id;
   final String restaurantId;
@@ -69,6 +70,7 @@ class MenuItem {
   final String? description;
   final String? imageUrl;
   final String? categoryName;
+  final String? parentCategoryId;
   final int price;
   final int displayOrder;
   final bool isAvailable;

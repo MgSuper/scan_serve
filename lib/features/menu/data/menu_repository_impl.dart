@@ -162,7 +162,10 @@ class MenuRepositoryImpl implements MenuRepository {
 
     categorySubscription = _restaurantCategories(restaurantId).snapshots().listen(
       (snapshot) {
-        categoryDocuments = snapshot.docs;
+        categoryDocuments = _categoryDocumentsForBranch(
+          snapshot.docs,
+          branchId,
+        );
         debugPrint(
           '[MenuRepository] category snapshot path=${_categoryPath(restaurantId)} '
           'restaurantId=$restaurantId branchId=$branchId '
@@ -206,13 +209,7 @@ class MenuRepositoryImpl implements MenuRepository {
         'restaurantId=$restaurantId branchId=$branchId '
         'documentCount=${snapshot.docs.length}',
       );
-      return snapshot.docs
-          .where((document) {
-            final data = document.data();
-            final documentBranchId = _optionalString(data['branchId']);
-            return documentBranchId == null || documentBranchId == branchId;
-          })
-          .toList(growable: false);
+      return _categoryDocumentsForBranch(snapshot.docs, branchId);
     } catch (error, stackTrace) {
       _logError(
         operation: 'load categories; deriving from menu items',
@@ -225,6 +222,16 @@ class MenuRepositoryImpl implements MenuRepository {
       return <QueryDocumentSnapshot<Map<String, dynamic>>>[];
     }
   }
+
+  List<QueryDocumentSnapshot<Map<String, dynamic>>> _categoryDocumentsForBranch(
+    List<QueryDocumentSnapshot<Map<String, dynamic>>> documents,
+    String branchId,
+  ) => documents
+      .where((document) {
+        final documentBranchId = _optionalString(document.data()['branchId']);
+        return documentBranchId == null || documentBranchId == branchId;
+      })
+      .toList(growable: false);
 
   MenuCatalog _catalogFromDocuments(
     List<QueryDocumentSnapshot<Map<String, dynamic>>> documents, {
@@ -405,6 +412,9 @@ class MenuRepositoryImpl implements MenuRepository {
       description: _optionalString(data['description']),
       imageUrl: _optionalString(data['imageUrl']),
       categoryName: _optionalString(data['categoryName']),
+      parentCategoryId:
+          _optionalString(data['parentCategoryId']) ??
+          _optionalString(data['parentId']),
       price: price.toInt(),
       displayOrder: _integer(data['displayOrder']) ?? displayOrder,
       isAvailable: true,
