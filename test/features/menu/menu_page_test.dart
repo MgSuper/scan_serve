@@ -23,7 +23,7 @@ void main() {
   ) async {
     final fixture = await _pumpMenuPage(tester);
 
-    expect(find.text('Spicy Noodles'), findsOneWidget);
+    expect(find.text('Spicy Noodles'), findsAtLeastNWidgets(1));
     expect(find.text('Fruit Yogurt'), findsOneWidget);
 
     await tester.enterText(find.byType(TextField), 'yogurt');
@@ -34,7 +34,7 @@ void main() {
     expect(fixture.menuBloc.state.searchQuery, 'yogurt');
   });
 
-  testWidgets('shows category item counts and filters nested categories', (
+  testWidgets('shows count badges and expands nested category children', (
     tester,
   ) async {
     await _pumpMenuPage(tester);
@@ -42,19 +42,49 @@ void main() {
     await tester.tap(find.byIcon(Icons.menu));
     await tester.pumpAndSettle();
 
-    expect(find.text('Mains (1)'), findsOneWidget);
-    expect(find.text('Desserts (1)'), findsOneWidget);
-    expect(find.text('Seasonal Desserts (1)'), findsNothing);
+    final drawer = find.byType(Drawer);
+    expect(
+      find.descendant(of: drawer, matching: find.text('All categories')),
+      findsOneWidget,
+    );
+    expect(
+      find.descendant(of: drawer, matching: find.text('Mains')),
+      findsOneWidget,
+    );
+    expect(
+      find.descendant(of: drawer, matching: find.text('Desserts')),
+      findsOneWidget,
+    );
+    expect(find.text('2'), findsOneWidget);
+    expect(
+      find.descendant(of: drawer, matching: find.text('Seasonal Desserts')),
+      findsNothing,
+    );
 
     await tester.tap(find.byIcon(Icons.expand_more));
     await tester.pumpAndSettle();
-    expect(find.text('Seasonal Desserts (1)'), findsOneWidget);
 
-    await tester.tap(find.text('Seasonal Desserts (1)'));
+    expect(
+      find.descendant(of: drawer, matching: find.text('Spicy Noodles')),
+      findsOneWidget,
+    );
+    expect(
+      find.descendant(of: drawer, matching: find.text('Soups')),
+      findsOneWidget,
+    );
+    expect(
+      find.descendant(of: drawer, matching: find.text('1')),
+      findsAtLeastNWidgets(1),
+    );
+
+    await tester.tap(
+      find.descendant(of: drawer, matching: find.text('Spicy Noodles')),
+    );
     await tester.pumpAndSettle();
 
-    expect(find.text('Fruit Yogurt'), findsOneWidget);
-    expect(find.text('Spicy Noodles'), findsNothing);
+    expect(find.text('Spicy Noodles'), findsAtLeastNWidgets(1));
+    expect(find.text('Fruit Yogurt'), findsNothing);
+    expect(find.text('Phở bò'), findsNothing);
   });
 
   testWidgets('shows add feedback and quantity on the dish action', (
@@ -92,7 +122,7 @@ void main() {
     final searchField = tester.widget<TextField>(find.byType(TextField));
     expect(searchField.controller?.text, 'yogurt');
     expect(fixture.menuBloc.state.searchQuery, 'yogurt');
-    expect(find.text('Fruit Yogurt'), findsAtLeastNWidgets(1));
+    expect(find.text('Fruit Yogurt'), findsOneWidget);
     expect(find.text('Spicy Noodles'), findsNothing);
   });
 }
@@ -175,23 +205,34 @@ MenuCatalog _createCatalog() {
         metadata: metadata,
       ),
       Category(
+        id: 'mains-spicy-noodles',
+        restaurantId: restaurantId,
+        branchId: branchId,
+        menuId: menuId,
+        name: 'Spicy Noodles',
+        parentCategoryId: 'mains',
+        displayOrder: 0,
+        isActive: true,
+        metadata: metadata,
+      ),
+      Category(
+        id: 'mains-soups',
+        restaurantId: restaurantId,
+        branchId: branchId,
+        menuId: menuId,
+        name: 'Soups',
+        parentCategoryId: 'mains',
+        displayOrder: 1,
+        isActive: true,
+        metadata: metadata,
+      ),
+      Category(
         id: 'desserts',
         restaurantId: restaurantId,
         branchId: branchId,
         menuId: menuId,
         name: 'Desserts',
         displayOrder: 1,
-        isActive: true,
-        metadata: metadata,
-      ),
-      Category(
-        id: 'seasonal-desserts',
-        restaurantId: restaurantId,
-        branchId: branchId,
-        menuId: menuId,
-        name: 'Seasonal Desserts',
-        parentCategoryId: 'desserts',
-        displayOrder: 0,
         isActive: true,
         metadata: metadata,
       ),
@@ -202,8 +243,8 @@ MenuCatalog _createCatalog() {
         restaurantId: restaurantId,
         branchId: branchId,
         menuId: menuId,
-        categoryId: 'mains',
-        categoryName: 'Mains',
+        categoryId: 'mains-spicy-noodles',
+        categoryName: 'Spicy Noodles',
         name: 'Spicy Noodles',
         description: 'Chilli and garlic noodles',
         imageUrl: 'https://example.invalid/spicy-noodles.png',
@@ -213,16 +254,30 @@ MenuCatalog _createCatalog() {
         metadata: metadata,
       ),
       MenuItem(
+        id: 'pho-bo',
+        restaurantId: restaurantId,
+        branchId: branchId,
+        menuId: menuId,
+        categoryId: 'mains-soups',
+        categoryName: 'Soups',
+        name: 'Phở bò',
+        description: 'Slow-simmered beef noodle soup',
+        price: 85000,
+        displayOrder: 1,
+        isAvailable: true,
+        metadata: metadata,
+      ),
+      MenuItem(
         id: 'fruit-yogurt',
         restaurantId: restaurantId,
         branchId: branchId,
         menuId: menuId,
-        categoryId: 'seasonal-desserts',
-        categoryName: 'Seasonal Desserts',
+        categoryId: 'desserts',
+        categoryName: 'Desserts',
         name: 'Fruit Yogurt',
         description: 'Yogurt with tropical fruit',
         price: 42000,
-        displayOrder: 1,
+        displayOrder: 2,
         isAvailable: true,
         metadata: metadata,
       ),

@@ -326,7 +326,10 @@ class _CategoryDrawer extends StatelessWidget {
                     ? colorScheme.primary
                     : null,
               ),
-              title: Text('All categories ($totalItemCount)'),
+              title: _CategoryLabel(
+                name: 'All categories',
+                itemCount: totalItemCount,
+              ),
               selected: selectedCategoryName == null,
               onTap: () => onCategorySelected(null),
             ),
@@ -351,6 +354,40 @@ class _CategoryDrawer extends StatelessWidget {
   }
 }
 
+class _CategoryLabel extends StatelessWidget {
+  const _CategoryLabel({required this.name, required this.itemCount});
+
+  final String name;
+  final int itemCount;
+
+  @override
+  Widget build(BuildContext context) {
+    final colorScheme = Theme.of(context).colorScheme;
+    return Row(
+      children: <Widget>[
+        Expanded(child: Text(name, overflow: TextOverflow.ellipsis)),
+        const SizedBox(width: 8),
+        Container(
+          constraints: const BoxConstraints(minWidth: 28),
+          padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 3),
+          decoration: BoxDecoration(
+            color: colorScheme.secondaryContainer,
+            borderRadius: BorderRadius.circular(999),
+          ),
+          child: Text(
+            '$itemCount',
+            textAlign: TextAlign.center,
+            style: Theme.of(context).textTheme.labelSmall?.copyWith(
+              color: colorScheme.onSecondaryContainer,
+              fontWeight: FontWeight.w700,
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+}
+
 class _CategoryTreeTile extends StatelessWidget {
   const _CategoryTreeTile({
     required this.node,
@@ -370,13 +407,14 @@ class _CategoryTreeTile extends StatelessWidget {
       node.children.isEmpty ? Icons.restaurant_outlined : Icons.folder_outlined,
       color: isSelected ? colorScheme.primary : null,
     );
-    final title = Text('${node.name} (${node.itemCount})');
+    final title = _CategoryLabel(name: node.name, itemCount: node.itemCount);
 
     if (node.children.isEmpty) {
       return ListTile(
         leading: leading,
         title: title,
         selected: isSelected,
+        contentPadding: const EdgeInsetsDirectional.only(start: 16, end: 16),
         onTap: () => onCategorySelected(node.name),
       );
     }
@@ -385,6 +423,7 @@ class _CategoryTreeTile extends StatelessWidget {
       key: PageStorageKey<String>('menu-category-${node.id}'),
       initiallyExpanded: node.containsCategory(selectedCategoryName),
       maintainState: true,
+      controlAffinity: ListTileControlAffinity.trailing,
       tilePadding: const EdgeInsetsDirectional.only(start: 16, end: 16),
       leading: leading,
       title: InkWell(
