@@ -382,7 +382,10 @@ class _CategoryTreeTile extends StatelessWidget {
     }
 
     return ExpansionTile(
+      key: PageStorageKey<String>('menu-category-${node.id}'),
       initiallyExpanded: node.containsCategory(selectedCategoryName),
+      maintainState: true,
+      tilePadding: const EdgeInsetsDirectional.only(start: 16, end: 16),
       leading: leading,
       title: InkWell(
         onTap: () => onCategorySelected(node.name),
@@ -391,7 +394,7 @@ class _CategoryTreeTile extends StatelessWidget {
           child: title,
         ),
       ),
-      childrenPadding: const EdgeInsets.only(left: 16),
+      childrenPadding: const EdgeInsetsDirectional.only(start: 24),
       children: node.children
           .map(
             (child) => _CategoryTreeTile(

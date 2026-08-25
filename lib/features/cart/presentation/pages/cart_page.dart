@@ -65,7 +65,10 @@ class CartSheet extends StatelessWidget {
               child: BlocBuilder<CartBloc, CartState>(
                 builder: (context, state) {
                   if (state is CartSubmitted) {
-                    return _SubmittedView(orderId: state.orderId);
+                    return _SubmittedView(
+                      orderId: state.orderId,
+                      closeSheetBeforeNavigate: true,
+                    );
                   }
                   return CartContent(state: state);
                 },
@@ -168,9 +171,13 @@ class CartContent extends StatelessWidget {
 }
 
 class _SubmittedView extends StatelessWidget {
-  const _SubmittedView({required this.orderId});
+  const _SubmittedView({
+    required this.orderId,
+    this.closeSheetBeforeNavigate = false,
+  });
 
   final String orderId;
+  final bool closeSheetBeforeNavigate;
 
   @override
   Widget build(BuildContext context) {
@@ -187,17 +194,34 @@ class _SubmittedView extends StatelessWidget {
             Text('Order ID: $orderId', textAlign: TextAlign.center),
             const SizedBox(height: 24),
             FilledButton(
-              onPressed: () => context.go(
-                Uri(
-                  path: '/order-tracking',
-                  queryParameters: <String, String>{'orderId': orderId},
-                ).toString(),
-              ),
+              onPressed: () => _trackOrder(context),
               child: const Text('Track order'),
             ),
           ],
         ),
       ),
     );
+  }
+
+  Future<void> _trackOrder(BuildContext context) async {
+    if (!context.mounted) return;
+
+    final destination = Uri(
+      path: '/order-tracking',
+      queryParameters: <String, String>{'orderId': orderId},
+    ).toString();
+    final router = GoRouter.of(context);
+
+    if (!closeSheetBeforeNavigate) {
+      if (!context.mounted) return;
+      context.go(destination);
+      return;
+    }
+
+    if (!context.mounted) return;
+    final navigator = Navigator.of(context);
+    navigator.pop();
+    await Future<void>.delayed(Duration.zero);
+    router.go(destination);
   }
 }
