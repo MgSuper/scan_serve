@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/foundation.dart' show debugPrint;
 import 'package:scan_serve/core/error/repository_exception.dart';
@@ -6,10 +8,15 @@ import 'package:scan_serve/features/menu/domain/repositories/menu_repository.dar
 import 'package:scan_serve/shared/domain/audit_metadata.dart';
 
 class _CategoryRecord {
-  const _CategoryRecord({required this.name, this.parentCategoryId});
+  const _CategoryRecord({
+    required this.name,
+    this.parentCategoryId,
+    this.displayOrder = 0,
+  });
 
   final String name;
   final String? parentCategoryId;
+  final int displayOrder;
 }
 
 class MenuRepositoryImpl implements MenuRepository {
@@ -22,6 +29,13 @@ class MenuRepositoryImpl implements MenuRepository {
     String restaurantId,
   ) =>
       _firestore.collection('restaurants').doc(restaurantId).collection('menu');
+
+  CollectionReference<Map<String, dynamic>> _restaurantCategories(
+    String restaurantId,
+  ) => _firestore
+      .collection('restaurants')
+      .doc(restaurantId)
+      .collection('categories');
 
   @override
   Future<MenuCatalog> getActiveMenu({
@@ -36,8 +50,13 @@ class MenuRepositoryImpl implements MenuRepository {
         branchId: branchId,
         documents: snapshot.docs,
       );
+      final categoryDocuments = await _loadCategoryDocuments(
+        restaurantId: restaurantId,
+        branchId: branchId,
+      );
       return _catalogFromDocuments(
         snapshot.docs,
+        categoryDocuments: categoryDocuments,
         restaurantId: restaurantId,
         branchId: branchId,
         allowEmpty: true,
@@ -81,48 +100,136 @@ class MenuRepositoryImpl implements MenuRepository {
     required String branchId,
   }) {
     final path = _menuPath(restaurantId);
-    return _restaurantMenu(restaurantId)
-        .snapshots()
-        .map((snapshot) {
-          _logSnapshot(
-            path: path,
+    final controller = StreamController<MenuCatalog>();
+    var menuDocuments = <QueryDocumentSnapshot<Map<String, dynamic>>>[];
+    var categoryDocuments = <QueryDocumentSnapshot<Map<String, dynamic>>>[];
+    var menuReady = false;
+
+    void emitCatalog() {
+      if (!menuReady) return;
+      _logSnapshot(
+        path: path,
+        restaurantId: restaurantId,
+        branchId: branchId,
+        documents: menuDocuments,
+      );
+      try {
+        controller.add(
+          _catalogFromDocuments(
+            menuDocuments,
+            categoryDocuments: categoryDocuments,
             restaurantId: restaurantId,
             branchId: branchId,
-            documents: snapshot.docs,
-          );
-          try {
-            return _catalogFromDocuments(
-              snapshot.docs,
-              restaurantId: restaurantId,
-              branchId: branchId,
-              allowEmpty: true,
-            );
-          } catch (error, stackTrace) {
-            _logError(
-              operation: 'watchActiveMenu mapping',
-              path: path,
-              restaurantId: restaurantId,
-              branchId: branchId,
-              error: error,
-              stackTrace: stackTrace,
-            );
-            rethrow;
-          }
-        })
-        .handleError((Object error, StackTrace stackTrace) {
-          _logError(
-            operation: 'watchActiveMenu stream',
-            path: path,
-            restaurantId: restaurantId,
-            branchId: branchId,
-            error: error,
-            stackTrace: stackTrace,
-          );
-        });
+            allowEmpty: true,
+          ),
+        );
+      } catch (error, stackTrace) {
+        _logError(
+          operation: 'watchActiveMenu mapping',
+          path: path,
+          restaurantId: restaurantId,
+          branchId: branchId,
+          error: error,
+          stackTrace: stackTrace,
+        );
+        controller.addError(error, stackTrace);
+      }
+    }
+
+    late final StreamSubscription<QuerySnapshot<Map<String, dynamic>>>
+    menuSubscription;
+    late final StreamSubscription<QuerySnapshot<Map<String, dynamic>>>
+    categorySubscription;
+
+    menuSubscription = _restaurantMenu(restaurantId).snapshots().listen(
+      (snapshot) {
+        menuDocuments = snapshot.docs;
+        menuReady = true;
+        emitCatalog();
+      },
+      onError: (Object error, StackTrace stackTrace) {
+        _logError(
+          operation: 'watchActiveMenu stream',
+          path: path,
+          restaurantId: restaurantId,
+          branchId: branchId,
+          error: error,
+          stackTrace: stackTrace,
+        );
+        controller.addError(error, stackTrace);
+      },
+    );
+
+    categorySubscription = _restaurantCategories(restaurantId).snapshots().listen(
+      (snapshot) {
+        categoryDocuments = snapshot.docs;
+        debugPrint(
+          '[MenuRepository] category snapshot path=${_categoryPath(restaurantId)} '
+          'restaurantId=$restaurantId branchId=$branchId '
+          'documentCount=${snapshot.docs.length}',
+        );
+        emitCatalog();
+      },
+      onError: (Object error, StackTrace stackTrace) {
+        // Customer sessions may be unable to read category documents under
+        // restrictive rules. Menu-item parentCategoryId metadata remains a
+        // complete fallback, so keep the menu stream usable.
+        categoryDocuments = <QueryDocumentSnapshot<Map<String, dynamic>>>[];
+        _logError(
+          operation: 'watch category stream; deriving from menu items',
+          path: _categoryPath(restaurantId),
+          restaurantId: restaurantId,
+          branchId: branchId,
+          error: error,
+          stackTrace: stackTrace,
+        );
+        emitCatalog();
+      },
+    );
+
+    controller.onCancel = () async {
+      await menuSubscription.cancel();
+      await categorySubscription.cancel();
+    };
+    return controller.stream;
+  }
+
+  Future<List<QueryDocumentSnapshot<Map<String, dynamic>>>>
+  _loadCategoryDocuments({
+    required String restaurantId,
+    required String branchId,
+  }) async {
+    try {
+      final snapshot = await _restaurantCategories(restaurantId).get();
+      debugPrint(
+        '[MenuRepository] category snapshot path=${_categoryPath(restaurantId)} '
+        'restaurantId=$restaurantId branchId=$branchId '
+        'documentCount=${snapshot.docs.length}',
+      );
+      return snapshot.docs
+          .where((document) {
+            final data = document.data();
+            final documentBranchId = _optionalString(data['branchId']);
+            return documentBranchId == null || documentBranchId == branchId;
+          })
+          .toList(growable: false);
+    } catch (error, stackTrace) {
+      _logError(
+        operation: 'load categories; deriving from menu items',
+        path: _categoryPath(restaurantId),
+        restaurantId: restaurantId,
+        branchId: branchId,
+        error: error,
+        stackTrace: stackTrace,
+      );
+      return <QueryDocumentSnapshot<Map<String, dynamic>>>[];
+    }
   }
 
   MenuCatalog _catalogFromDocuments(
     List<QueryDocumentSnapshot<Map<String, dynamic>>> documents, {
+    List<QueryDocumentSnapshot<Map<String, dynamic>>> categoryDocuments =
+        const <QueryDocumentSnapshot<Map<String, dynamic>>>[],
     required String restaurantId,
     required String branchId,
     bool allowEmpty = false,
@@ -150,6 +257,9 @@ class MenuRepositoryImpl implements MenuRepository {
     final now = DateTime.now().toUtc();
     final metadata = AuditMetadata(createdAt: now, updatedAt: now);
     final categoryRecords = <String, _CategoryRecord>{};
+
+    // Menu item metadata remains the fallback when customer sessions cannot
+    // read the staff-managed categories collection.
     for (final document in documents) {
       final data = document.data();
       final category =
@@ -159,14 +269,52 @@ class MenuRepositoryImpl implements MenuRepository {
           'Menu';
       final categoryId =
           _optionalString(data['categoryId']) ?? _categoryId(category);
+      final parentCategoryId =
+          _optionalString(data['parentCategoryId']) ??
+          _optionalString(data['parentId']);
+
+      if (parentCategoryId != null &&
+          !categoryRecords.containsKey(parentCategoryId)) {
+        categoryRecords[parentCategoryId] = _CategoryRecord(
+          name: _optionalString(data['category']) ?? parentCategoryId,
+          displayOrder: categoryRecords.length,
+        );
+      }
       categoryRecords.putIfAbsent(
         categoryId,
         () => _CategoryRecord(
           name: category,
-          parentCategoryId:
-              _optionalString(data['parentCategoryId']) ??
-              _optionalString(data['parentId']),
+          parentCategoryId: parentCategoryId,
+          displayOrder: categoryRecords.length,
         ),
+      );
+    }
+
+    // Firestore category documents are canonical and can describe categories
+    // that currently have zero items. They also repair a missing synthesized
+    // parent when only a child document is present.
+    for (final document in categoryDocuments) {
+      final data = document.data();
+      if (data['isActive'] == false ||
+          data['archived'] == true ||
+          data['isArchived'] == true) {
+        continue;
+      }
+      final categoryId = _optionalString(data['id']) ?? document.id;
+      final categoryName = _optionalString(data['name']);
+      if (categoryName == null) continue;
+      final parentCategoryId = _optionalString(data['parentCategoryId']);
+      if (parentCategoryId != null &&
+          !categoryRecords.containsKey(parentCategoryId)) {
+        categoryRecords[parentCategoryId] = _CategoryRecord(
+          name: parentCategoryId,
+          displayOrder: categoryRecords.length,
+        );
+      }
+      categoryRecords[categoryId] = _CategoryRecord(
+        name: categoryName,
+        parentCategoryId: parentCategoryId,
+        displayOrder: _integer(data['displayOrder']) ?? categoryRecords.length,
       );
     }
 
@@ -179,7 +327,7 @@ class MenuRepositoryImpl implements MenuRepository {
             menuId: menuId,
             name: entry.value.name,
             parentCategoryId: entry.value.parentCategoryId,
-            displayOrder: categoryRecords.keys.toList().indexOf(entry.key),
+            displayOrder: entry.value.displayOrder,
             isActive: true,
             metadata: metadata,
           ),
@@ -300,6 +448,9 @@ class MenuRepositoryImpl implements MenuRepository {
   }
 
   String _menuPath(String restaurantId) => 'restaurants/$restaurantId/menu';
+
+  String _categoryPath(String restaurantId) =>
+      'restaurants/$restaurantId/categories';
 
   void _logSnapshot({
     required String path,

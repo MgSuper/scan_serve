@@ -49,8 +49,8 @@ class MenuBloc extends Bloc<MenuEvent, MenuState> {
   void _onCategoryChanged(MenuCategoryChanged event, Emitter<MenuState> emit) {
     emit(
       _withFilters(
-        selectedCategoryName: event.categoryName,
-        clearCategory: event.categoryName == null,
+        selectedCategoryId: event.categoryId,
+        clearCategory: event.categoryId == null,
       ),
     );
   }
@@ -65,7 +65,7 @@ class MenuBloc extends Bloc<MenuEvent, MenuState> {
     emit(
       MenuLoading(
         searchQuery: state.searchQuery,
-        selectedCategoryName: state.selectedCategoryName,
+        selectedCategoryId: state.selectedCategoryId,
       ),
     );
     try {
@@ -77,7 +77,7 @@ class MenuBloc extends Bloc<MenuEvent, MenuState> {
         MenuLoaded(
           catalog,
           searchQuery: state.searchQuery,
-          selectedCategoryName: state.selectedCategoryName,
+          selectedCategoryId: state.selectedCategoryId,
         ),
       );
       _menuSubscription =
@@ -94,7 +94,7 @@ class MenuBloc extends Bloc<MenuEvent, MenuState> {
         MenuError(
           _message(error),
           searchQuery: state.searchQuery,
-          selectedCategoryName: state.selectedCategoryName,
+          selectedCategoryId: state.selectedCategoryId,
         ),
       );
     }
@@ -105,7 +105,7 @@ class MenuBloc extends Bloc<MenuEvent, MenuState> {
       MenuLoaded(
         event.catalog,
         searchQuery: state.searchQuery,
-        selectedCategoryName: state.selectedCategoryName,
+        selectedCategoryId: state.selectedCategoryId,
       ),
     );
   }
@@ -115,39 +115,39 @@ class MenuBloc extends Bloc<MenuEvent, MenuState> {
       MenuError(
         _message(event.error),
         searchQuery: state.searchQuery,
-        selectedCategoryName: state.selectedCategoryName,
+        selectedCategoryId: state.selectedCategoryId,
       ),
     );
   }
 
   MenuState _withFilters({
     String? searchQuery,
-    String? selectedCategoryName,
+    String? selectedCategoryId,
     bool clearCategory = false,
   }) {
     final currentSearchQuery = searchQuery ?? state.searchQuery;
-    final currentCategoryName = clearCategory
+    final currentCategoryId = clearCategory
         ? null
-        : selectedCategoryName ?? state.selectedCategoryName;
+        : selectedCategoryId ?? state.selectedCategoryId;
 
     return switch (state) {
       MenuInitial() => MenuInitial(
         searchQuery: currentSearchQuery,
-        selectedCategoryName: currentCategoryName,
+        selectedCategoryId: currentCategoryId,
       ),
       MenuLoading() => MenuLoading(
         searchQuery: currentSearchQuery,
-        selectedCategoryName: currentCategoryName,
+        selectedCategoryId: currentCategoryId,
       ),
       MenuLoaded(:final catalog) => MenuLoaded(
         catalog,
         searchQuery: currentSearchQuery,
-        selectedCategoryName: currentCategoryName,
+        selectedCategoryId: currentCategoryId,
       ),
       MenuError(:final message) => MenuError(
         message,
         searchQuery: currentSearchQuery,
-        selectedCategoryName: currentCategoryName,
+        selectedCategoryId: currentCategoryId,
       ),
     };
   }

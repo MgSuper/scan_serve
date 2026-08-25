@@ -91,6 +91,53 @@ void main() {
     expect(find.text('Phở bò'), findsNothing);
   });
 
+  testWidgets(
+    'aggregates dynamic parent counts and strictly filters a child category',
+    (tester) async {
+      await _pumpMenuPage(tester, catalog: _createCatalogWithDynamicCoffee());
+
+      await tester.tap(find.byIcon(Icons.menu));
+      await tester.pumpAndSettle();
+      final drawer = find.byType(Drawer);
+      expect(
+        find.descendant(of: drawer, matching: find.text('Drinks')),
+        findsOneWidget,
+      );
+      expect(
+        find.descendant(of: drawer, matching: find.text('2')),
+        findsAtLeastNWidgets(2),
+      );
+      await tester.tap(
+        find
+            .descendant(of: drawer, matching: find.byIcon(Icons.expand_more))
+            .last,
+      );
+      await tester.pumpAndSettle();
+      expect(
+        find.descendant(of: drawer, matching: find.text('Coffee')),
+        findsOneWidget,
+      );
+
+      await tester.tap(
+        find.descendant(of: drawer, matching: find.text('Drinks')),
+      );
+      await tester.pumpAndSettle();
+      expect(find.text('Iced coffee'), findsOneWidget);
+      expect(find.text('Cold brew'), findsOneWidget);
+
+      await tester.tap(find.byIcon(Icons.menu));
+      await tester.pumpAndSettle();
+      final reopenedDrawer = find.byType(Drawer);
+      await tester.tap(
+        find.descendant(of: reopenedDrawer, matching: find.text('Coffee')),
+      );
+      await tester.pumpAndSettle();
+
+      expect(find.text('Cold brew'), findsOneWidget);
+      expect(find.text('Iced coffee'), findsNothing);
+    },
+  );
+
   testWidgets('shows add feedback and quantity on the dish action', (
     tester,
   ) async {
@@ -131,8 +178,11 @@ void main() {
   });
 }
 
-Future<_MenuFixture> _pumpMenuPage(WidgetTester tester) async {
-  final menuRepository = _MenuRepository(_catalog);
+Future<_MenuFixture> _pumpMenuPage(
+  WidgetTester tester, {
+  MenuCatalog? catalog,
+}) async {
+  final menuRepository = _MenuRepository(catalog ?? _catalog);
   final cartRepository = _CartRepository();
   final menuBloc = MenuBloc(
     getActiveMenu: GetActiveMenu(menuRepository),
@@ -286,6 +336,63 @@ MenuCatalog _createCatalog() {
         metadata: metadata,
       ),
     ],
+  );
+}
+
+MenuCatalog _createCatalogWithDynamicCoffee() {
+  final base = _createCatalog();
+  final metadata = base.menu.metadata;
+  final drinks = Category(
+    id: 'drinks',
+    restaurantId: base.menu.restaurantId,
+    branchId: base.menu.branchId,
+    menuId: base.menu.id,
+    name: 'Drinks',
+    displayOrder: 2,
+    isActive: true,
+    metadata: metadata,
+  );
+  final coffee = Category(
+    id: 'drinks-coffee',
+    restaurantId: base.menu.restaurantId,
+    branchId: base.menu.branchId,
+    menuId: base.menu.id,
+    name: 'Coffee',
+    parentCategoryId: 'drinks',
+    displayOrder: 0,
+    isActive: true,
+    metadata: metadata,
+  );
+  final icedCoffee = MenuItem(
+    id: 'iced-coffee',
+    restaurantId: base.menu.restaurantId,
+    branchId: base.menu.branchId,
+    menuId: base.menu.id,
+    categoryId: 'drinks',
+    categoryName: 'Drinks',
+    name: 'Iced coffee',
+    price: 35000,
+    displayOrder: 3,
+    isAvailable: true,
+    metadata: metadata,
+  );
+  final coldBrew = MenuItem(
+    id: 'cold-brew',
+    restaurantId: base.menu.restaurantId,
+    branchId: base.menu.branchId,
+    menuId: base.menu.id,
+    categoryId: 'drinks-coffee',
+    categoryName: 'Coffee',
+    name: 'Cold brew',
+    price: 45000,
+    displayOrder: 4,
+    isAvailable: true,
+    metadata: metadata,
+  );
+  return MenuCatalog(
+    menu: base.menu,
+    categories: [...base.categories, drinks, coffee],
+    items: [...base.items, icedCoffee, coldBrew],
   );
 }
 

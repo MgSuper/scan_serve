@@ -84,10 +84,10 @@ class _MenuPageState extends State<MenuPage> {
               : _CategoryDrawer(
                   categories: categoryTree,
                   totalItemCount: catalog.items.length,
-                  selectedCategoryName: state.selectedCategoryName,
-                  onCategorySelected: (categoryName) {
+                  selectedCategoryId: state.selectedCategoryId,
+                  onCategorySelected: (categoryId) {
                     context.read<MenuBloc>().add(
-                      MenuCategoryChanged(categoryName),
+                      MenuCategoryChanged(categoryId),
                     );
                     Navigator.of(context).pop();
                   },
@@ -109,7 +109,7 @@ class _MenuPageState extends State<MenuPage> {
               categoryTree: categoryTree,
               searchController: _searchController,
               searchQuery: state.searchQuery,
-              selectedCategoryName: state.selectedCategoryName,
+              selectedCategoryId: state.selectedCategoryId,
               onSearchChanged: (query) =>
                   context.read<MenuBloc>().add(MenuSearchChanged(query)),
               onClearSearch: () {
@@ -150,7 +150,7 @@ class _MenuCatalogView extends StatelessWidget {
     required this.categoryTree,
     required this.searchController,
     required this.searchQuery,
-    required this.selectedCategoryName,
+    required this.selectedCategoryId,
     required this.onSearchChanged,
     required this.onClearSearch,
     required this.onClearCategory,
@@ -160,7 +160,7 @@ class _MenuCatalogView extends StatelessWidget {
   final List<_CategoryNode> categoryTree;
   final TextEditingController searchController;
   final String searchQuery;
-  final String? selectedCategoryName;
+  final String? selectedCategoryId;
   final ValueChanged<String> onSearchChanged;
   final VoidCallback onClearSearch;
   final VoidCallback onClearCategory;
@@ -176,18 +176,14 @@ class _MenuCatalogView extends StatelessWidget {
         final normalizedSearch = searchQuery.trim().toLowerCase();
         final selectedNode = _findCategoryNode(
           categoryTree,
-          selectedCategoryName,
+          selectedCategoryId,
         );
         final selectedCategoryIds = selectedNode?.allCategoryIds ?? const {};
-        final selectedCategoryNames =
-            selectedNode?.allCategoryNames ?? const {};
         final filteredItems = catalog.items
             .where((item) {
-              final categoryName = _categoryNameFor(catalog, item);
               final matchesCategory =
                   selectedNode == null ||
-                  selectedCategoryIds.contains(item.categoryId) ||
-                  selectedCategoryNames.contains(categoryName);
+                  selectedCategoryIds.contains(item.categoryId);
               final matchesSearch =
                   normalizedSearch.isEmpty ||
                   item.name.toLowerCase().contains(normalizedSearch);
@@ -243,13 +239,13 @@ class _MenuCatalogView extends StatelessWidget {
                   filled: true,
                 ),
               ),
-              if (selectedCategoryName != null) ...<Widget>[
+              if (selectedNode case final selected?) ...<Widget>[
                 const SizedBox(height: 12),
                 Row(
                   children: <Widget>[
                     Chip(
                       avatar: const Icon(Icons.filter_list, size: 18),
-                      label: Text(selectedCategoryName!),
+                      label: Text(selected.name),
                       onDeleted: onClearCategory,
                     ),
                     const SizedBox(width: 8),
@@ -292,13 +288,13 @@ class _CategoryDrawer extends StatelessWidget {
   const _CategoryDrawer({
     required this.categories,
     required this.totalItemCount,
-    required this.selectedCategoryName,
+    required this.selectedCategoryId,
     required this.onCategorySelected,
   });
 
   final List<_CategoryNode> categories;
   final int totalItemCount;
-  final String? selectedCategoryName;
+  final String? selectedCategoryId;
   final ValueChanged<String?> onCategorySelected;
 
   @override
@@ -322,15 +318,13 @@ class _CategoryDrawer extends StatelessWidget {
             ListTile(
               leading: Icon(
                 Icons.grid_view_rounded,
-                color: selectedCategoryName == null
-                    ? colorScheme.primary
-                    : null,
+                color: selectedCategoryId == null ? colorScheme.primary : null,
               ),
               title: _CategoryLabel(
                 name: 'All categories',
                 itemCount: totalItemCount,
               ),
-              selected: selectedCategoryName == null,
+              selected: selectedCategoryId == null,
               onTap: () => onCategorySelected(null),
             ),
             const Divider(height: 1),
@@ -340,7 +334,7 @@ class _CategoryDrawer extends StatelessWidget {
                     .map(
                       (category) => _CategoryTreeTile(
                         node: category,
-                        selectedCategoryName: selectedCategoryName,
+                        selectedCategoryId: selectedCategoryId,
                         onCategorySelected: onCategorySelected,
                       ),
                     )
@@ -391,18 +385,18 @@ class _CategoryLabel extends StatelessWidget {
 class _CategoryTreeTile extends StatelessWidget {
   const _CategoryTreeTile({
     required this.node,
-    required this.selectedCategoryName,
+    required this.selectedCategoryId,
     required this.onCategorySelected,
   });
 
   final _CategoryNode node;
-  final String? selectedCategoryName;
+  final String? selectedCategoryId;
   final ValueChanged<String?> onCategorySelected;
 
   @override
   Widget build(BuildContext context) {
     final colorScheme = Theme.of(context).colorScheme;
-    final isSelected = node.name == selectedCategoryName;
+    final isSelected = node.id == selectedCategoryId;
     final leading = Icon(
       node.children.isEmpty ? Icons.restaurant_outlined : Icons.folder_outlined,
       color: isSelected ? colorScheme.primary : null,
@@ -415,19 +409,19 @@ class _CategoryTreeTile extends StatelessWidget {
         title: title,
         selected: isSelected,
         contentPadding: const EdgeInsetsDirectional.only(start: 16, end: 16),
-        onTap: () => onCategorySelected(node.name),
+        onTap: () => onCategorySelected(node.id),
       );
     }
 
     return ExpansionTile(
       key: PageStorageKey<String>('menu-category-${node.id}'),
-      initiallyExpanded: node.containsCategory(selectedCategoryName),
+      initiallyExpanded: node.containsCategory(selectedCategoryId),
       maintainState: true,
       controlAffinity: ListTileControlAffinity.trailing,
       tilePadding: const EdgeInsetsDirectional.only(start: 16, end: 16),
       leading: leading,
       title: InkWell(
-        onTap: () => onCategorySelected(node.name),
+        onTap: () => onCategorySelected(node.id),
         child: Padding(
           padding: const EdgeInsets.symmetric(vertical: 8),
           child: title,
@@ -441,7 +435,7 @@ class _CategoryTreeTile extends StatelessWidget {
               padding: const EdgeInsets.only(left: 16.0),
               child: _CategoryTreeTile(
                 node: child,
-                selectedCategoryName: selectedCategoryName,
+                selectedCategoryId: selectedCategoryId,
                 onCategorySelected: onCategorySelected,
               ),
             ),
@@ -678,14 +672,9 @@ class _CategoryNode {
     ...children.expand((child) => child.allCategoryIds),
   };
 
-  Set<String> get allCategoryNames => <String>{
-    name,
-    ...children.expand((child) => child.allCategoryNames),
-  };
-
-  bool containsCategory(String? categoryName) {
-    if (categoryName == null) return false;
-    return allCategoryNames.contains(categoryName);
+  bool containsCategory(String? categoryId) {
+    if (categoryId == null) return false;
+    return allCategoryIds.contains(categoryId);
   }
 }
 
@@ -742,12 +731,12 @@ List<_CategoryNode> _buildCategoryTree(MenuCatalog catalog) {
 
 _CategoryNode? _findCategoryNode(
   Iterable<_CategoryNode> nodes,
-  String? categoryName,
+  String? categoryId,
 ) {
-  if (categoryName == null) return null;
+  if (categoryId == null) return null;
   for (final node in nodes) {
-    if (node.name == categoryName) return node;
-    final match = _findCategoryNode(node.children, categoryName);
+    if (node.id == categoryId) return node;
+    final match = _findCategoryNode(node.children, categoryId);
     if (match != null) return match;
   }
   return null;
