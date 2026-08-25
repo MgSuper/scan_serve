@@ -317,6 +317,24 @@ class FirestoreCustomerRepository implements CustomerRepository {
 
   @override
   Future<void> requestWaiter() async {
+    await _createAssistanceRequest(
+      requestType: 'WAITER',
+      errorMessage: 'Unable to notify a waiter.',
+    );
+  }
+
+  @override
+  Future<void> requestPayment() async {
+    await _createAssistanceRequest(
+      requestType: 'PAYMENT',
+      errorMessage: 'Unable to request payment assistance.',
+    );
+  }
+
+  Future<void> _createAssistanceRequest({
+    required String requestType,
+    required String errorMessage,
+  }) async {
     final requestReference = _firestore
         .collection('restaurants')
         .doc(restaurantId)
@@ -329,13 +347,13 @@ class FirestoreCustomerRepository implements CustomerRepository {
         'tableId': tableId,
         'tableSessionId': tableSessionId,
         'customerSessionId': customerSessionId,
+        'requestType': requestType,
+        'type': requestType,
         'status': 'OPEN',
         'createdAt': FieldValue.serverTimestamp(),
       });
     } on FirebaseException catch (error) {
-      throw StateError(
-        _firebaseMessage(error, fallback: 'Unable to notify a waiter.'),
-      );
+      throw StateError(_firebaseMessage(error, fallback: errorMessage));
     }
   }
 

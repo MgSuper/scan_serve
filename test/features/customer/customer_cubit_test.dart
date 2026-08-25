@@ -23,6 +23,8 @@ class _Repository implements CustomerRepository {
   @override
   Future<void> requestWaiter() async {}
   @override
+  Future<void> requestPayment() async {}
+  @override
   Future<CustomerOrder> submitOrder(List<CartLine> lines) async =>
       CustomerOrder(
         id: 'ORD-1',

@@ -56,6 +56,9 @@ class DemoCustomerRepository implements CustomerRepository {
   Future<void> requestWaiter() async {}
 
   @override
+  Future<void> requestPayment() async {}
+
+  @override
   Future<CustomerOrder> submitOrder(List<CartLine> lines) async {
     if (lines.isEmpty) throw StateError('Your cart is empty.');
     _activeOrder = CustomerOrder(

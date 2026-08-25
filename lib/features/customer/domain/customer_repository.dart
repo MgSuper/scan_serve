@@ -5,4 +5,5 @@ abstract interface class CustomerRepository {
   Future<CustomerOrder> submitOrder(List<CartLine> lines);
   Stream<CustomerOrder?> getActiveOrder();
   Future<void> requestWaiter();
+  Future<void> requestPayment();
 }

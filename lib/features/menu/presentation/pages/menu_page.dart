@@ -12,11 +12,17 @@ class MenuPage extends StatefulWidget {
   const MenuPage({
     required this.restaurantId,
     required this.branchId,
+    required this.tableId,
+    required this.tableSessionId,
+    required this.customerSessionId,
     super.key,
   });
 
   final String restaurantId;
   final String branchId;
+  final String tableId;
+  final String tableSessionId;
+  final String customerSessionId;
 
   @override
   State<MenuPage> createState() => _MenuPageState();
@@ -83,6 +89,9 @@ class _MenuPageState extends State<MenuPage> {
       queryParameters: <String, String>{
         'restaurantId': widget.restaurantId,
         'branchId': widget.branchId,
+        'tableId': widget.tableId,
+        'tableSessionId': widget.tableSessionId,
+        'customerSessionId': widget.customerSessionId,
       },
     ).toString();
   }

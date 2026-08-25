@@ -69,5 +69,8 @@ class _LiveRepository implements CustomerRepository {
   @override
   Future<void> requestWaiter() async {}
 
+  @override
+  Future<void> requestPayment() async {}
+
   Future<void> dispose() => updates.close();
 }
