@@ -20,15 +20,66 @@ class CartPage extends StatelessWidget {
           if (state is CartSubmitted) {
             return _SubmittedView(orderId: state.orderId);
           }
-          return _CartContent(state: state);
+          return CartContent(state: state);
         },
       ),
     );
   }
 }
 
-class _CartContent extends StatelessWidget {
-  const _CartContent({required this.state});
+class CartSheet extends StatelessWidget {
+  const CartSheet({super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    return FractionallySizedBox(
+      heightFactor: .82,
+      child: Material(
+        clipBehavior: Clip.antiAlias,
+        borderRadius: const BorderRadius.vertical(top: Radius.circular(28)),
+        child: Column(
+          children: <Widget>[
+            const SizedBox(height: 12),
+            Container(
+              width: 42,
+              height: 4,
+              decoration: BoxDecoration(
+                color: Colors.black26,
+                borderRadius: BorderRadius.circular(999),
+              ),
+            ),
+            const SizedBox(height: 8),
+            Padding(
+              padding: const EdgeInsets.fromLTRB(20, 4, 20, 12),
+              child: Align(
+                alignment: Alignment.centerLeft,
+                child: Text(
+                  'Your order',
+                  style: Theme.of(
+                    context,
+                  ).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.w700),
+                ),
+              ),
+            ),
+            Expanded(
+              child: BlocBuilder<CartBloc, CartState>(
+                builder: (context, state) {
+                  if (state is CartSubmitted) {
+                    return _SubmittedView(orderId: state.orderId);
+                  }
+                  return CartContent(state: state);
+                },
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class CartContent extends StatelessWidget {
+  const CartContent({required this.state, super.key});
 
   final CartState state;
 

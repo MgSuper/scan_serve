@@ -1,4 +1,5 @@
 import 'package:equatable/equatable.dart';
+
 import 'package:scan_serve/features/menu/domain/menu_entities.dart';
 
 sealed class MenuEvent extends Equatable {
@@ -26,6 +27,24 @@ final class RefreshMenu extends MenuEvent {
 
   @override
   List<Object?> get props => <Object?>[restaurantId, branchId];
+}
+
+final class MenuSearchChanged extends MenuEvent {
+  const MenuSearchChanged(this.query);
+
+  final String query;
+
+  @override
+  List<Object?> get props => <Object?>[query];
+}
+
+final class MenuCategoryChanged extends MenuEvent {
+  const MenuCategoryChanged(this.categoryName);
+
+  final String? categoryName;
+
+  @override
+  List<Object?> get props => <Object?>[categoryName];
 }
 
 final class MenuStreamUpdated extends MenuEvent {

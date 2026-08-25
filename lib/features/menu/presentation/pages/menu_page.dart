@@ -1,9 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
-import 'package:go_router/go_router.dart';
-
 import 'package:scan_serve/features/cart/presentation/bloc/cart_bloc.dart';
 import 'package:scan_serve/features/cart/presentation/bloc/cart_event.dart';
+import 'package:scan_serve/features/cart/presentation/bloc/cart_state.dart';
+import 'package:scan_serve/features/cart/presentation/pages/cart_page.dart';
 import 'package:scan_serve/features/menu/domain/menu_entities.dart';
 import 'package:scan_serve/features/menu/presentation/bloc/menu_bloc.dart';
 import 'package:scan_serve/features/menu/presentation/bloc/menu_event.dart';
@@ -30,13 +30,14 @@ class MenuPage extends StatefulWidget {
 }
 
 class _MenuPageState extends State<MenuPage> {
-  final _searchController = TextEditingController();
-  String _searchQuery = '';
-  String? _selectedCategoryName;
+  late final TextEditingController _searchController;
 
   @override
   void initState() {
     super.initState();
+    _searchController = TextEditingController(
+      text: context.read<MenuBloc>().state.searchQuery,
+    );
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (mounted) {
         context.read<MenuBloc>().add(
@@ -63,14 +64,17 @@ class _MenuPageState extends State<MenuPage> {
           MenuLoaded(:final catalog) => catalog,
           _ => null,
         };
+        final categoryTree = catalog == null
+            ? const <_CategoryNode>[]
+            : _buildCategoryTree(catalog);
 
         return Scaffold(
           appBar: AppBar(
             title: const Text('Menu'),
             actions: <Widget>[
               IconButton(
-                tooltip: 'Cart',
-                onPressed: () => context.go(_cartPath()),
+                tooltip: 'View order',
+                onPressed: _showCartPreview,
                 icon: const Icon(Icons.shopping_cart_outlined),
               ),
             ],
@@ -78,10 +82,13 @@ class _MenuPageState extends State<MenuPage> {
           drawer: catalog == null
               ? null
               : _CategoryDrawer(
-                  categories: _categoriesFor(catalog),
-                  selectedCategoryName: _selectedCategoryName,
+                  categories: categoryTree,
+                  totalItemCount: catalog.items.length,
+                  selectedCategoryName: state.selectedCategoryName,
                   onCategorySelected: (categoryName) {
-                    setState(() => _selectedCategoryName = categoryName);
+                    context.read<MenuBloc>().add(
+                      MenuCategoryChanged(categoryName),
+                    );
                     Navigator.of(context).pop();
                   },
                 ),
@@ -99,186 +106,184 @@ class _MenuPageState extends State<MenuPage> {
             ),
             MenuLoaded(:final catalog) => _MenuCatalogView(
               catalog: catalog,
+              categoryTree: categoryTree,
               searchController: _searchController,
-              searchQuery: _searchQuery,
-              selectedCategoryName: _selectedCategoryName,
-              onSearchChanged: (value) => setState(() => _searchQuery = value),
+              searchQuery: state.searchQuery,
+              selectedCategoryName: state.selectedCategoryName,
+              onSearchChanged: (query) =>
+                  context.read<MenuBloc>().add(MenuSearchChanged(query)),
               onClearSearch: () {
                 _searchController.clear();
-                setState(() => _searchQuery = '');
+                context.read<MenuBloc>().add(const MenuSearchChanged(''));
               },
               onClearCategory: () =>
-                  setState(() => _selectedCategoryName = null),
-              categoryNameFor: _categoryNameFor,
+                  context.read<MenuBloc>().add(const MenuCategoryChanged(null)),
             ),
           },
           floatingActionButton: FloatingActionButton.extended(
-            onPressed: () => context.go(_cartPath()),
+            onPressed: _showCartPreview,
             icon: const Icon(Icons.shopping_cart_outlined),
-            label: const Text('View cart'),
+            label: const Text('View order'),
           ),
         );
       },
     );
   }
 
-  String _cartPath() {
-    return Uri(
-      path: '/cart',
-      queryParameters: <String, String>{
-        'restaurantId': widget.restaurantId,
-        'branchId': widget.branchId,
-        'tableId': widget.tableId,
-        'tableSessionId': widget.tableSessionId,
-        'customerSessionId': widget.customerSessionId,
-      },
-    ).toString();
-  }
-
-  List<String> _categoriesFor(MenuCatalog catalog) {
-    final categories = <String>{};
-    for (final category in catalog.categories) {
-      final name = category.name.trim();
-      if (name.isNotEmpty) categories.add(name);
-    }
-    for (final item in catalog.items) {
-      categories.add(_categoryNameFor(catalog, item));
-    }
-    return categories.toList(growable: false);
-  }
-
-  String _categoryNameFor(MenuCatalog catalog, MenuItem item) {
-    final explicitName = item.categoryName?.trim();
-    if (explicitName != null && explicitName.isNotEmpty) return explicitName;
-
-    for (final category in catalog.categories) {
-      if (category.id == item.categoryId) return category.name;
-    }
-    return item.categoryId;
+  Future<void> _showCartPreview() async {
+    await showModalBottomSheet<void>(
+      context: context,
+      isScrollControlled: true,
+      useSafeArea: true,
+      backgroundColor: Colors.transparent,
+      builder: (_) => BlocProvider.value(
+        value: context.read<CartBloc>(),
+        child: const CartSheet(),
+      ),
+    );
   }
 }
 
 class _MenuCatalogView extends StatelessWidget {
   const _MenuCatalogView({
     required this.catalog,
+    required this.categoryTree,
     required this.searchController,
     required this.searchQuery,
     required this.selectedCategoryName,
     required this.onSearchChanged,
     required this.onClearSearch,
     required this.onClearCategory,
-    required this.categoryNameFor,
   });
 
   final MenuCatalog catalog;
+  final List<_CategoryNode> categoryTree;
   final TextEditingController searchController;
   final String searchQuery;
   final String? selectedCategoryName;
   final ValueChanged<String> onSearchChanged;
   final VoidCallback onClearSearch;
   final VoidCallback onClearCategory;
-  final String Function(MenuCatalog catalog, MenuItem item) categoryNameFor;
 
   @override
   Widget build(BuildContext context) {
-    final normalizedSearch = searchQuery.trim().toLowerCase();
-    final filteredItems = catalog.items
-        .where((item) {
-          final categoryName = categoryNameFor(catalog, item);
-          final matchesCategory =
-              selectedCategoryName == null ||
-              categoryName == selectedCategoryName;
-          final matchesSearch =
-              normalizedSearch.isEmpty ||
-              item.name.toLowerCase().contains(normalizedSearch);
-          return matchesCategory && matchesSearch;
-        })
-        .toList(growable: false);
-
-    final groupedItems = <String, List<MenuItem>>{};
-    for (final item in filteredItems) {
-      final categoryName = categoryNameFor(catalog, item);
-      groupedItems.putIfAbsent(categoryName, () => <MenuItem>[]).add(item);
-    }
-
-    return RefreshIndicator(
-      onRefresh: () async {
-        context.read<MenuBloc>().add(
-          RefreshMenu(
-            restaurantId: catalog.menu.restaurantId,
-            branchId: catalog.menu.branchId,
-          ),
+    return BlocBuilder<CartBloc, CartState>(
+      builder: (context, cartState) {
+        final quantities = <String, int>{
+          for (final item in cartState.cart.items)
+            item.menuItemId: item.quantity,
+        };
+        final normalizedSearch = searchQuery.trim().toLowerCase();
+        final selectedNode = _findCategoryNode(
+          categoryTree,
+          selectedCategoryName,
         );
-        await Future<void>.delayed(const Duration(milliseconds: 250));
-      },
-      child: ListView(
-        padding: const EdgeInsets.fromLTRB(16, 16, 16, 104),
-        children: <Widget>[
-          Text(
-            catalog.menu.name,
-            style: Theme.of(context).textTheme.headlineSmall,
-          ),
-          if (catalog.menu.description case final description?) ...<Widget>[
-            const SizedBox(height: 8),
-            Text(description),
-          ],
-          const SizedBox(height: 20),
-          TextField(
-            controller: searchController,
-            onChanged: onSearchChanged,
-            textInputAction: TextInputAction.search,
-            decoration: InputDecoration(
-              hintText: 'Search menu items',
-              prefixIcon: const Icon(Icons.search),
-              suffixIcon: searchQuery.isEmpty
-                  ? null
-                  : IconButton(
-                      tooltip: 'Clear search',
-                      onPressed: onClearSearch,
-                      icon: const Icon(Icons.clear),
-                    ),
-              border: OutlineInputBorder(
-                borderRadius: BorderRadius.circular(16),
+        final selectedCategoryIds = selectedNode?.allCategoryIds ?? const {};
+        final selectedCategoryNames =
+            selectedNode?.allCategoryNames ?? const {};
+        final filteredItems = catalog.items
+            .where((item) {
+              final categoryName = _categoryNameFor(catalog, item);
+              final matchesCategory =
+                  selectedNode == null ||
+                  selectedCategoryIds.contains(item.categoryId) ||
+                  selectedCategoryNames.contains(categoryName);
+              final matchesSearch =
+                  normalizedSearch.isEmpty ||
+                  item.name.toLowerCase().contains(normalizedSearch);
+              return matchesCategory && matchesSearch;
+            })
+            .toList(growable: false);
+
+        final groupedItems = <String, List<MenuItem>>{};
+        for (final item in filteredItems) {
+          final categoryName = _categoryNameFor(catalog, item);
+          groupedItems.putIfAbsent(categoryName, () => <MenuItem>[]).add(item);
+        }
+
+        return RefreshIndicator(
+          onRefresh: () async {
+            context.read<MenuBloc>().add(
+              RefreshMenu(
+                restaurantId: catalog.menu.restaurantId,
+                branchId: catalog.menu.branchId,
               ),
-              filled: true,
-            ),
-          ),
-          if (selectedCategoryName != null) ...<Widget>[
-            const SizedBox(height: 12),
-            Row(
-              children: <Widget>[
-                Chip(
-                  avatar: const Icon(Icons.filter_list, size: 18),
-                  label: Text(selectedCategoryName!),
-                  onDeleted: onClearCategory,
+            );
+            await Future<void>.delayed(const Duration(milliseconds: 250));
+          },
+          child: ListView(
+            padding: const EdgeInsets.fromLTRB(16, 16, 16, 104),
+            children: <Widget>[
+              Text(
+                catalog.menu.name,
+                style: Theme.of(context).textTheme.headlineSmall,
+              ),
+              if (catalog.menu.description case final description?) ...<Widget>[
+                const SizedBox(height: 8),
+                Text(description),
+              ],
+              const SizedBox(height: 20),
+              TextField(
+                controller: searchController,
+                onChanged: onSearchChanged,
+                textInputAction: TextInputAction.search,
+                decoration: InputDecoration(
+                  hintText: 'Search menu items',
+                  prefixIcon: const Icon(Icons.search),
+                  suffixIcon: searchQuery.isEmpty
+                      ? null
+                      : IconButton(
+                          tooltip: 'Clear search',
+                          onPressed: onClearSearch,
+                          icon: const Icon(Icons.clear),
+                        ),
+                  border: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(16),
+                  ),
+                  filled: true,
                 ),
-                const SizedBox(width: 8),
-                Text(
-                  '${filteredItems.length} item${filteredItems.length == 1 ? '' : 's'}',
-                  style: Theme.of(context).textTheme.bodySmall,
+              ),
+              if (selectedCategoryName != null) ...<Widget>[
+                const SizedBox(height: 12),
+                Row(
+                  children: <Widget>[
+                    Chip(
+                      avatar: const Icon(Icons.filter_list, size: 18),
+                      label: Text(selectedCategoryName!),
+                      onDeleted: onClearCategory,
+                    ),
+                    const SizedBox(width: 8),
+                    Text(
+                      '${filteredItems.length} item${filteredItems.length == 1 ? '' : 's'}',
+                      style: Theme.of(context).textTheme.bodySmall,
+                    ),
+                  ],
                 ),
               ],
-            ),
-          ],
-          const SizedBox(height: 24),
-          if (filteredItems.isEmpty)
-            const Padding(
-              padding: EdgeInsets.symmetric(vertical: 48),
-              child: Column(
-                children: <Widget>[
-                  Icon(Icons.search_off, size: 48),
-                  SizedBox(height: 12),
-                  Text('No menu items match your search.'),
-                ],
-              ),
-            )
-          else
-            ...groupedItems.entries.map(
-              (entry) =>
-                  _CategorySection(categoryName: entry.key, items: entry.value),
-            ),
-        ],
-      ),
+              const SizedBox(height: 24),
+              if (filteredItems.isEmpty)
+                const Padding(
+                  padding: EdgeInsets.symmetric(vertical: 48),
+                  child: Column(
+                    children: <Widget>[
+                      Icon(Icons.search_off, size: 48),
+                      SizedBox(height: 12),
+                      Text('No menu items match your filters.'),
+                    ],
+                  ),
+                )
+              else
+                ...groupedItems.entries.map(
+                  (entry) => _CategorySection(
+                    categoryName: entry.key,
+                    items: entry.value,
+                    quantities: quantities,
+                  ),
+                ),
+            ],
+          ),
+        );
+      },
     );
   }
 }
@@ -286,11 +291,13 @@ class _MenuCatalogView extends StatelessWidget {
 class _CategoryDrawer extends StatelessWidget {
   const _CategoryDrawer({
     required this.categories,
+    required this.totalItemCount,
     required this.selectedCategoryName,
     required this.onCategorySelected,
   });
 
-  final List<String> categories;
+  final List<_CategoryNode> categories;
+  final int totalItemCount;
   final String? selectedCategoryName;
   final ValueChanged<String?> onCategorySelected;
 
@@ -319,27 +326,22 @@ class _CategoryDrawer extends StatelessWidget {
                     ? colorScheme.primary
                     : null,
               ),
-              title: const Text('All categories'),
+              title: Text('All categories ($totalItemCount)'),
               selected: selectedCategoryName == null,
               onTap: () => onCategorySelected(null),
             ),
             const Divider(height: 1),
             Expanded(
-              child: ListView.builder(
-                itemCount: categories.length,
-                itemBuilder: (context, index) {
-                  final categoryName = categories[index];
-                  final selected = categoryName == selectedCategoryName;
-                  return ListTile(
-                    leading: Icon(
-                      Icons.restaurant_outlined,
-                      color: selected ? colorScheme.primary : null,
-                    ),
-                    title: Text(categoryName),
-                    selected: selected,
-                    onTap: () => onCategorySelected(categoryName),
-                  );
-                },
+              child: ListView(
+                children: categories
+                    .map(
+                      (category) => _CategoryTreeTile(
+                        node: category,
+                        selectedCategoryName: selectedCategoryName,
+                        onCategorySelected: onCategorySelected,
+                      ),
+                    )
+                    .toList(growable: false),
               ),
             ),
           ],
@@ -349,11 +351,70 @@ class _CategoryDrawer extends StatelessWidget {
   }
 }
 
+class _CategoryTreeTile extends StatelessWidget {
+  const _CategoryTreeTile({
+    required this.node,
+    required this.selectedCategoryName,
+    required this.onCategorySelected,
+  });
+
+  final _CategoryNode node;
+  final String? selectedCategoryName;
+  final ValueChanged<String?> onCategorySelected;
+
+  @override
+  Widget build(BuildContext context) {
+    final colorScheme = Theme.of(context).colorScheme;
+    final isSelected = node.name == selectedCategoryName;
+    final leading = Icon(
+      node.children.isEmpty ? Icons.restaurant_outlined : Icons.folder_outlined,
+      color: isSelected ? colorScheme.primary : null,
+    );
+    final title = Text('${node.name} (${node.itemCount})');
+
+    if (node.children.isEmpty) {
+      return ListTile(
+        leading: leading,
+        title: title,
+        selected: isSelected,
+        onTap: () => onCategorySelected(node.name),
+      );
+    }
+
+    return ExpansionTile(
+      initiallyExpanded: node.containsCategory(selectedCategoryName),
+      leading: leading,
+      title: InkWell(
+        onTap: () => onCategorySelected(node.name),
+        child: Padding(
+          padding: const EdgeInsets.symmetric(vertical: 8),
+          child: title,
+        ),
+      ),
+      childrenPadding: const EdgeInsets.only(left: 16),
+      children: node.children
+          .map(
+            (child) => _CategoryTreeTile(
+              node: child,
+              selectedCategoryName: selectedCategoryName,
+              onCategorySelected: onCategorySelected,
+            ),
+          )
+          .toList(growable: false),
+    );
+  }
+}
+
 class _CategorySection extends StatelessWidget {
-  const _CategorySection({required this.categoryName, required this.items});
+  const _CategorySection({
+    required this.categoryName,
+    required this.items,
+    required this.quantities,
+  });
 
   final String categoryName;
   final List<MenuItem> items;
+  final Map<String, int> quantities;
 
   @override
   Widget build(BuildContext context) {
@@ -364,7 +425,10 @@ class _CategorySection extends StatelessWidget {
         children: <Widget>[
           Text(categoryName, style: Theme.of(context).textTheme.titleLarge),
           const SizedBox(height: 8),
-          ...items.map((item) => _MenuItemTile(item: item)),
+          ...items.map(
+            (item) =>
+                _MenuItemTile(item: item, quantity: quantities[item.id] ?? 0),
+          ),
         ],
       ),
     );
@@ -372,9 +436,10 @@ class _CategorySection extends StatelessWidget {
 }
 
 class _MenuItemTile extends StatelessWidget {
-  const _MenuItemTile({required this.item});
+  const _MenuItemTile({required this.item, required this.quantity});
 
   final MenuItem item;
+  final int quantity;
 
   @override
   Widget build(BuildContext context) {
@@ -425,13 +490,34 @@ class _MenuItemTile extends StatelessWidget {
             Padding(
               padding: const EdgeInsets.only(top: 2),
               child: IconButton.filled(
-                tooltip: item.isAvailable ? 'Add to cart' : 'Unavailable',
+                tooltip: item.isAvailable
+                    ? quantity > 0
+                          ? 'Add another'
+                          : 'Add to order'
+                    : 'Unavailable',
                 onPressed: item.isAvailable
-                    ? () => context.read<CartBloc>().add(
-                        AddToCartEvent(menuItem: item),
-                      )
+                    ? () {
+                        context.read<CartBloc>().add(
+                          AddToCartEvent(menuItem: item),
+                        );
+                        ScaffoldMessenger.of(context)
+                          ..hideCurrentSnackBar()
+                          ..showSnackBar(
+                            SnackBar(
+                              content: Text('Added ${item.name} to order'),
+                              duration: const Duration(seconds: 2),
+                            ),
+                          );
+                      }
                     : null,
-                icon: const Icon(Icons.add),
+                icon: quantity > 0
+                    ? Text(
+                        '$quantity',
+                        style: Theme.of(context).textTheme.labelLarge?.copyWith(
+                          fontWeight: FontWeight.w700,
+                        ),
+                      )
+                    : const Icon(Icons.add),
               ),
             ),
           ],
@@ -521,6 +607,114 @@ class _ErrorView extends StatelessWidget {
       ),
     );
   }
+}
+
+class _CategoryNode {
+  _CategoryNode({
+    required this.id,
+    required this.name,
+    required this.displayOrder,
+    this.parentCategoryId,
+  });
+
+  final String id;
+  final String name;
+  final int displayOrder;
+  final String? parentCategoryId;
+  int directItemCount = 0;
+  final List<_CategoryNode> children = <_CategoryNode>[];
+
+  int get itemCount =>
+      directItemCount + children.fold(0, (sum, child) => sum + child.itemCount);
+
+  Set<String> get allCategoryIds => <String>{
+    id,
+    ...children.expand((child) => child.allCategoryIds),
+  };
+
+  Set<String> get allCategoryNames => <String>{
+    name,
+    ...children.expand((child) => child.allCategoryNames),
+  };
+
+  bool containsCategory(String? categoryName) {
+    if (categoryName == null) return false;
+    return allCategoryNames.contains(categoryName);
+  }
+}
+
+List<_CategoryNode> _buildCategoryTree(MenuCatalog catalog) {
+  final nodesById = <String, _CategoryNode>{};
+  for (final category in catalog.categories) {
+    nodesById[category.id] = _CategoryNode(
+      id: category.id,
+      name: category.name,
+      displayOrder: category.displayOrder,
+      parentCategoryId: category.parentCategoryId,
+    );
+  }
+
+  for (final item in catalog.items) {
+    final categoryName = _categoryNameFor(catalog, item);
+    final node = nodesById.putIfAbsent(
+      item.categoryId,
+      () => _CategoryNode(
+        id: item.categoryId,
+        name: categoryName,
+        displayOrder: catalog.items.indexOf(item),
+      ),
+    );
+    node.directItemCount += 1;
+  }
+
+  final roots = <_CategoryNode>[];
+  for (final node in nodesById.values) {
+    final parent = node.parentCategoryId == null
+        ? null
+        : nodesById[node.parentCategoryId!];
+    if (parent == null || parent.id == node.id) {
+      roots.add(node);
+    } else {
+      parent.children.add(node);
+    }
+  }
+
+  void sortNodes(List<_CategoryNode> nodes) {
+    nodes.sort(
+      (left, right) => left.displayOrder == right.displayOrder
+          ? left.name.toLowerCase().compareTo(right.name.toLowerCase())
+          : left.displayOrder.compareTo(right.displayOrder),
+    );
+    for (final node in nodes) {
+      sortNodes(node.children);
+    }
+  }
+
+  sortNodes(roots);
+  return roots;
+}
+
+_CategoryNode? _findCategoryNode(
+  Iterable<_CategoryNode> nodes,
+  String? categoryName,
+) {
+  if (categoryName == null) return null;
+  for (final node in nodes) {
+    if (node.name == categoryName) return node;
+    final match = _findCategoryNode(node.children, categoryName);
+    if (match != null) return match;
+  }
+  return null;
+}
+
+String _categoryNameFor(MenuCatalog catalog, MenuItem item) {
+  final explicitName = item.categoryName?.trim();
+  if (explicitName != null && explicitName.isNotEmpty) return explicitName;
+
+  for (final category in catalog.categories) {
+    if (category.id == item.categoryId) return category.name;
+  }
+  return item.categoryId;
 }
 
 String _formatPrice(int price) {

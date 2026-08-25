@@ -5,6 +5,13 @@ import 'package:scan_serve/features/menu/domain/menu_entities.dart';
 import 'package:scan_serve/features/menu/domain/repositories/menu_repository.dart';
 import 'package:scan_serve/shared/domain/audit_metadata.dart';
 
+class _CategoryRecord {
+  const _CategoryRecord({required this.name, this.parentCategoryId});
+
+  final String name;
+  final String? parentCategoryId;
+}
+
 class MenuRepositoryImpl implements MenuRepository {
   const MenuRepositoryImpl({required FirebaseFirestore firestore})
     : _firestore = firestore;
@@ -142,7 +149,7 @@ class MenuRepositoryImpl implements MenuRepository {
         : items.first.menuId;
     final now = DateTime.now().toUtc();
     final metadata = AuditMetadata(createdAt: now, updatedAt: now);
-    final categoryNames = <String, String>{};
+    final categoryRecords = <String, _CategoryRecord>{};
     for (final document in documents) {
       final data = document.data();
       final category =
@@ -150,18 +157,29 @@ class MenuRepositoryImpl implements MenuRepository {
           _optionalString(data['category']) ??
           _optionalString(data['categoryId']) ??
           'Menu';
-      categoryNames.putIfAbsent(_categoryId(category), () => category);
+      final categoryId =
+          _optionalString(data['categoryId']) ?? _categoryId(category);
+      categoryRecords.putIfAbsent(
+        categoryId,
+        () => _CategoryRecord(
+          name: category,
+          parentCategoryId:
+              _optionalString(data['parentCategoryId']) ??
+              _optionalString(data['parentId']),
+        ),
+      );
     }
 
-    final categories = categoryNames.entries
+    final categories = categoryRecords.entries
         .map(
           (entry) => Category(
             id: entry.key,
             restaurantId: restaurantId,
             branchId: branchId,
             menuId: menuId,
-            name: entry.value,
-            displayOrder: categoryNames.keys.toList().indexOf(entry.key),
+            name: entry.value.name,
+            parentCategoryId: entry.value.parentCategoryId,
+            displayOrder: categoryRecords.keys.toList().indexOf(entry.key),
             isActive: true,
             metadata: metadata,
           ),

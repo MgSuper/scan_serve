@@ -30,6 +30,7 @@ class Category {
     required this.isActive,
     required this.metadata,
     this.description,
+    this.parentCategoryId,
   });
   final String id;
   final String restaurantId;
@@ -37,6 +38,7 @@ class Category {
   final String menuId;
   final String name;
   final String? description;
+  final String? parentCategoryId;
   final int displayOrder;
   final bool isActive;
   final AuditMetadata metadata;
