@@ -12,6 +12,8 @@ import {
 import { catchError, from, map, Observable, of, startWith, throwError } from 'rxjs';
 
 import { DEFAULT_BRANCH_ID, normalizeRestaurantId } from '../../../shared/restaurant-context';
+
+const DEFAULT_IMAGE_URL = 'https://placehold.co/640x480/png?text=ScanServe+Dish';
 import {
   CreateMenuItemInput,
   MenuAvailability,
@@ -29,12 +31,14 @@ interface MenuItemDto {
   readonly category?: unknown;
   readonly categoryId?: unknown;
   readonly categoryName?: unknown;
+  readonly parentCategoryId?: unknown;
   readonly imageUrl?: unknown;
   readonly price?: unknown;
   readonly availability?: unknown;
   readonly status?: unknown;
   readonly isAvailable?: unknown;
   readonly archived?: unknown;
+  readonly isArchived?: unknown;
   readonly createdAt?: unknown;
   readonly updatedAt?: unknown;
 }
@@ -84,13 +88,15 @@ export class MenuRepositoryImpl extends MenuRepository {
 
   createMenuItem(restaurantId: string, input: CreateMenuItemInput): Observable<MenuItem> {
     const resolvedRestaurantId = normalizeRestaurantId(restaurantId);
+    const resolvedBranchId = input.branchId?.trim() || DEFAULT_BRANCH_ID;
+    const parentCategoryId = input.parentCategoryId?.trim() || null;
     return from(
       runInInjectionContext(this.injector, async () => {
         const timestamp = serverTimestamp();
         const restaurantReference = doc(this.firestore, `restaurants/${resolvedRestaurantId}`);
         const branchReference = doc(
           this.firestore,
-          `restaurants/${resolvedRestaurantId}/branches/${DEFAULT_BRANCH_ID}`,
+          `restaurants/${resolvedRestaurantId}/branches/${resolvedBranchId}`,
         );
         const menuReference = doc(
           collection(this.firestore, `restaurants/${resolvedRestaurantId}/menu`),
@@ -100,7 +106,7 @@ export class MenuRepositoryImpl extends MenuRepository {
           {
             id: resolvedRestaurantId,
             name: resolvedRestaurantId,
-            defaultBranchId: DEFAULT_BRANCH_ID,
+            defaultBranchId: resolvedBranchId,
             isActive: true,
             createdAt: timestamp,
             updatedAt: timestamp,
@@ -110,9 +116,9 @@ export class MenuRepositoryImpl extends MenuRepository {
         await setDoc(
           branchReference,
           {
-            id: DEFAULT_BRANCH_ID,
+            id: resolvedBranchId,
             restaurantId: resolvedRestaurantId,
-            name: DEFAULT_BRANCH_ID,
+            name: resolvedBranchId,
             isActive: true,
             createdAt: timestamp,
             updatedAt: timestamp,
@@ -122,17 +128,19 @@ export class MenuRepositoryImpl extends MenuRepository {
         await setDoc(menuReference, {
           id: menuReference.id,
           restaurantId: resolvedRestaurantId,
-          branchId: DEFAULT_BRANCH_ID,
+          branchId: resolvedBranchId,
           name: input.name.trim(),
           description: input.description.trim(),
           category: input.category.trim(),
           categoryId: input.categoryId?.trim() || null,
           categoryName: input.categoryName?.trim() || input.category.trim(),
-          imageUrl: input.imageUrl?.trim() || null,
+          parentCategoryId,
+          imageUrl: input.imageUrl?.trim() || DEFAULT_IMAGE_URL,
           price: input.price,
           availability: input.availability,
           status: input.availability,
           isAvailable: input.availability === 'in_stock',
+          isArchived: false,
           archived: false,
           createdAt: timestamp,
           updatedAt: timestamp,
@@ -143,15 +151,17 @@ export class MenuRepositoryImpl extends MenuRepository {
       map((reference) => ({
         id: reference.id,
         restaurantId: resolvedRestaurantId,
-        branchId: DEFAULT_BRANCH_ID,
+        branchId: resolvedBranchId,
         name: input.name.trim(),
         description: input.description.trim(),
         category: input.category.trim(),
         categoryId: input.categoryId?.trim() || null,
         categoryName: input.categoryName?.trim() || input.category.trim(),
-        imageUrl: input.imageUrl?.trim() || null,
+        parentCategoryId,
+        imageUrl: input.imageUrl?.trim() || DEFAULT_IMAGE_URL,
         price: input.price,
         availability: input.availability,
+        isArchived: false,
         archived: false,
         createdAt: null,
         updatedAt: null,
@@ -168,6 +178,7 @@ export class MenuRepositoryImpl extends MenuRepository {
     input: UpdateMenuItemInput,
   ): Observable<void> {
     const resolvedRestaurantId = normalizeRestaurantId(restaurantId);
+    const parentCategoryId = input.parentCategoryId?.trim() || null;
     return from(
       runInInjectionContext(this.injector, () =>
         updateDoc(doc(this.firestore, `restaurants/${resolvedRestaurantId}/menu/${itemId}`), {
@@ -176,11 +187,14 @@ export class MenuRepositoryImpl extends MenuRepository {
           category: input.category.trim(),
           categoryId: input.categoryId?.trim() || null,
           categoryName: input.categoryName?.trim() || input.category.trim(),
-          imageUrl: input.imageUrl?.trim() || null,
+          parentCategoryId,
+          imageUrl: input.imageUrl?.trim() || DEFAULT_IMAGE_URL,
           price: input.price,
           availability: input.availability,
           status: input.availability,
           isAvailable: input.availability === 'in_stock',
+          isArchived: false,
+          archived: false,
           updatedAt: serverTimestamp(),
         }),
       ),
@@ -198,6 +212,7 @@ export class MenuRepositoryImpl extends MenuRepository {
       runInInjectionContext(this.injector, () =>
         updateDoc(doc(this.firestore, `restaurants/${resolvedRestaurantId}/menu/${itemId}`), {
           archived: true,
+          isArchived: true,
           availability: 'out_of_stock',
           status: 'out_of_stock',
           isAvailable: false,
@@ -279,10 +294,11 @@ function toMenuItem(dto: MenuItemDto, fallbackRestaurantId: string): MenuItem | 
             : 'Uncategorized',
     categoryId: typeof dto.categoryId === 'string' ? dto.categoryId : null,
     categoryName: typeof dto.categoryName === 'string' ? dto.categoryName : null,
+    parentCategoryId: typeof dto.parentCategoryId === 'string' ? dto.parentCategoryId : null,
     imageUrl: typeof dto.imageUrl === 'string' ? dto.imageUrl : null,
     price: dto.price,
     availability,
-    archived: dto.archived === true,
+    archived: dto.archived === true || dto.isArchived === true,
     createdAt: toDateOrDefault(dto.createdAt),
     updatedAt: toDateOrDefault(dto.updatedAt),
   };

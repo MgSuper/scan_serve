@@ -18,6 +18,10 @@
         <div>
           <p class="eyebrow">{{ editingId ? 'Edit item' : 'New item' }}</p>
           <h2>{{ editingId ? 'Update menu item' : 'Create menu item' }}</h2>
+          <p class="scope-note">
+            Tenant scope: <strong>{{ activeRestaurantId }}</strong> · Branch:
+            <strong>{{ activeBranchId }}</strong>
+          </p>
         </div>
         <button type="button" class="secondary-button" (click)="closeEditor()">Cancel</button>
       </div>
@@ -28,8 +32,38 @@
           <input name="name" [(ngModel)]="form.name" required />
         </label>
         <label>
-          Category
-          <input name="category" [(ngModel)]="form.category" required />
+          Parent category
+          <select
+            name="parentCategoryId"
+            [(ngModel)]="form.parentCategoryId"
+            (ngModelChange)="onParentCategoryChanged($event)"
+            required
+          >
+            <option [ngValue]="null">Select a parent category</option>
+            @for (category of parentCategoryOptions; track category.id) {
+              <option [ngValue]="category.id">{{ category.name }}</option>
+            }
+          </select>
+        </label>
+        <label>
+          Sub-category <span class="optional">(optional)</span>
+          @let children = childCategoriesFor(form.parentCategoryId);
+          <select
+            name="categoryId"
+            [(ngModel)]="form.categoryId"
+            (ngModelChange)="onSubCategoryChanged($event)"
+            [disabled]="children.length === 0"
+          >
+            <option [ngValue]="''">
+              {{ children.length ? 'Use the parent category' : 'No sub-categories available' }}
+            </option>
+            @for (category of children; track category.id) {
+              <option [ngValue]="category.id">{{ category.name }}</option>
+            }
+          </select>
+          <small class="field-hint">
+            Children render below the parent in the customer category drawer.
+          </small>
         </label>
         <label>
           Price
@@ -44,6 +78,15 @@
               </option>
             }
           </select>
+        </label>
+        <label class="wide-field">
+          Image URL <span class="optional">(placeholder used when blank)</span>
+          <input
+            name="imageUrl"
+            type="url"
+            [(ngModel)]="form.imageUrl"
+            placeholder="https://example.com/menu-item.jpg"
+          />
         </label>
         <label class="wide-field">
           Description
@@ -76,7 +119,12 @@
         <article class="menu-card">
           <div class="card-header">
             <div>
-              <span class="category">{{ item.category }}</span>
+              <span class="category">
+                {{ item.categoryName || item.category }}
+                @if (item.parentCategoryId) {
+                  <span class="category-parent"> · {{ item.category }}</span>
+                }
+              </span>
               <h2>{{ item.name }}</h2>
             </div>
             <span class="availability" [class.out-of-stock]="item.availability === 'out_of_stock'">
