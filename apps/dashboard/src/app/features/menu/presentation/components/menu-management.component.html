@@ -11,6 +11,9 @@
   @if (store.error(); as error) {
     <div class="error-banner" role="alert">{{ error }}</div>
   }
+  @if (categoryError(); as error) {
+    <div class="error-banner" role="alert">{{ error }}</div>
+  }
 
   @if (editorOpen) {
     <form class="editor" (submit)="$event.preventDefault(); save()">
@@ -34,35 +37,44 @@
         <label>
           Parent category
           <select
-            name="parentCategoryId"
-            [(ngModel)]="form.parentCategoryId"
+            name="parentCategorySelectionId"
+            [(ngModel)]="form.parentCategorySelectionId"
             (ngModelChange)="onParentCategoryChanged($event)"
             required
           >
             <option [ngValue]="null">Select a parent category</option>
-            @for (category of parentCategoryOptions; track category.id) {
+            @for (category of parentCategories(); track category.id) {
               <option [ngValue]="category.id">{{ category.name }}</option>
             }
           </select>
+          @if (categoriesLoading()) {
+            <small class="field-hint">Loading categories…</small>
+          }
         </label>
         <label>
           Sub-category <span class="optional">(optional)</span>
-          @let children = childCategoriesFor(form.parentCategoryId);
           <select
-            name="categoryId"
-            [(ngModel)]="form.categoryId"
+            name="subCategorySelectionId"
+            [(ngModel)]="form.subCategorySelectionId"
             (ngModelChange)="onSubCategoryChanged($event)"
-            [disabled]="children.length === 0"
+            [disabled]="!form.parentCategorySelectionId || subCategories().length === 0"
           >
-            <option [ngValue]="''">
-              {{ children.length ? 'Use the parent category' : 'No sub-categories available' }}
-            </option>
-            @for (category of children; track category.id) {
+            <option [ngValue]="''">None (top-level item)</option>
+            @for (category of subCategories(); track category.id) {
               <option [ngValue]="category.id">{{ category.name }}</option>
             }
           </select>
+          @if (form.parentCategorySelectionId && subCategories().length === 0) {
+            <small class="field-hint">No sub-categories exist for this parent.</small>
+          }
+          <input
+            name="customSubCategoryName"
+            [(ngModel)]="form.customSubCategoryName"
+            [disabled]="!form.parentCategorySelectionId"
+            placeholder="Or create a new sub-category"
+          />
           <small class="field-hint">
-            Children render below the parent in the customer category drawer.
+            Leave both controls empty for a top-level item, or enter a new name to create a child.
           </small>
         </label>
         <label>

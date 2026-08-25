@@ -91,6 +91,20 @@ const menuItems = [
   },
 ];
 
+const categories = [
+  { id: 'mains', name: 'Mains', parentCategoryId: null, displayOrder: 10 },
+  { id: 'mains-soups', name: 'Soups', parentCategoryId: 'mains', displayOrder: 11 },
+  {
+    id: 'mains-spicy-noodles',
+    name: 'Spicy Noodles',
+    parentCategoryId: 'mains',
+    displayOrder: 12,
+  },
+  { id: 'starters', name: 'Starters', parentCategoryId: null, displayOrder: 20 },
+  { id: 'desserts', name: 'Desserts', parentCategoryId: null, displayOrder: 30 },
+  { id: 'drinks', name: 'Drinks', parentCategoryId: null, displayOrder: 40 },
+];
+
 async function seedStaffProfile() {
   let user;
   try {
@@ -147,6 +161,7 @@ async function seedMenu() {
   const restaurantReference = firestore.collection('restaurants').doc(restaurantId);
   const branchReference = restaurantReference.collection('branches').doc(branchId);
   const nestedMenu = restaurantReference.collection('menu');
+  const nestedCategories = restaurantReference.collection('categories');
   batch.set(
     restaurantReference,
     {
@@ -171,6 +186,27 @@ async function seedMenu() {
     },
     { merge: true },
   );
+
+  for (const category of categories) {
+    batch.set(
+      nestedCategories.doc(category.id),
+      {
+        id: category.id,
+        restaurantId,
+        branchId,
+        menuId: 'main-menu',
+        name: category.name,
+        parentCategoryId: category.parentCategoryId,
+        displayOrder: category.displayOrder,
+        isActive: true,
+        isArchived: false,
+        archived: false,
+        createdAt: now,
+        updatedAt: now,
+      },
+      { merge: true },
+    );
+  }
 
   for (const item of menuItems) {
     const common = {
@@ -197,7 +233,7 @@ async function seedMenu() {
   }
 
   await batch.commit();
-  console.log(`[firestore-emulator] Seeded ${menuItems.length} menu items for ${restaurantId}/${branchId}.`);
+  console.log(`[firestore-emulator] Seeded ${categories.length} categories and ${menuItems.length} menu items for ${restaurantId}/${branchId}.`);
 }
 
 seedMenu().catch((error) => {
