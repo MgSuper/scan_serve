@@ -167,7 +167,7 @@ A new engineer should trace a customer action through the layers in this order.
 
 ### Step 1 — Start at the Firestore contract
 
-Read [`docs/specifications/firestore-contract.md`](firestore-contract.md) first. The important paths are:
+Read [`specifications/firestore-contract.md`](specifications/firestore-contract.md) first. The important paths are:
 
 ```text
 restaurants/{restaurantId}
@@ -352,6 +352,8 @@ The menu repository logs the menu path, restaurant/branch, document count, and d
 
 ## 8. Testing and quality gates
 
+Flutter testing in this repository is intentionally layered. Pure unit tests prove identifier and mapping rules without Flutter bindings; BLoC tests prove state transitions with deterministic repository doubles; widget tests prove the rendered menu/cart contract; emulator checks prove the real Firestore paths, Rules, and callable functions agree across applications. A passing widget test does not prove that `restaurants/{restaurantId}/menu/{menuItemId}` exists in the emulator, and a passing repository unit test does not prove that an anonymous browser is allowed to read it.
+
 Run the Flutter checks from the repository root:
 
 ```bash
@@ -360,18 +362,300 @@ Run the Flutter checks from the repository root:
 /home/ubuntu/flutter/bin/flutter build web --target lib/main_dev.dart
 ```
 
-The most valuable tests for this guide are:
+For one test while iterating, use the file filter supported by `flutter test`:
 
-- [`test/features/session/session_context_test.dart`](../test/features/session/session_context_test.dart): QR aliases, explicit IDs, and deterministic fallback IDs.
-- [`test/features/menu/menu_page_test.dart`](../test/features/menu/menu_page_test.dart): parent aggregation, child filtering, nested drawer rendering, and General buckets.
-- Menu BLoC tests: loading, refresh, search, and stable category-ID persistence.
-- Cart/repository tests: canonical cart IDs and menu document-ID canonicalization.
+```bash
+/home/ubuntu/flutter/bin/flutter test test/features/session/session_context_test.dart
+/home/ubuntu/flutter/bin/flutter test test/features/menu/menu_page_test.dart
+```
+
+### 8.1 Test taxonomy and ownership
+
+| Layer | Current example | What it proves | What it deliberately does not prove |
+|---|---|---|---|
+| Pure unit | [`session_context_test.dart`](../test/features/session/session_context_test.dart) | Alias precedence, token preservation, deterministic session IDs, and canonical serialization. | Firebase connectivity or Rules. |
+| Mapper unit | [`menu_mapper_test.dart`](../test/features/menu/menu_mapper_test.dart) | Optional Firestore fields map to valid domain values and document IDs are retained. | Live snapshot delivery. |
+| BLoC/state unit | [`menu_bloc_stream_test.dart`](../test/features/menu/menu_bloc_stream_test.dart), [`customer_cubit_test.dart`](../test/features/customer/customer_cubit_test.dart) | Loading, live catalog updates, order fallback, and cart/order state transitions. | Pixel layout and real Firestore data. |
+| Widget | [`menu_page_test.dart`](../test/features/menu/menu_page_test.dart), [`cart_sheet_test.dart`](../test/features/cart/cart_sheet_test.dart) | Search, category tree, badges, add feedback, bottom-sheet persistence, and safe navigation behavior. | Backend price authority or security authorization. |
+| Integration/emulator | Repository tests plus Firebase Emulator workflow | Exact collection paths, Rules, callable envelope, transaction writes, and mirrored orders. | Production latency, deployed indexes, and real device notification delivery. |
+| E2E | Flutter → Functions → Firestore → Angular kitchen | Cross-application contract: scanned scope, canonical menu ID, cart, order, and status transition. | A substitute for unit coverage; failures are harder to localize. |
+
+### 8.2 `SessionContext` unit tests: prove the QR contract first
+
+[`session_context_test.dart`](../test/features/session/session_context_test.dart) is the smallest high-value test in the customer flow. It supplies a plain `Map<String, String>` rather than a `GoRouterState`, so the test isolates alias parsing from routing and browser behavior.
+
+The alias test is structured as follows:
+
+```dart
+test('resolves QR aliases into a table-scoped customer session', () {
+  final context = SessionContext.fromQueryParameters({
+    'tenant': 'scanserve-demo',
+    'branch': 'main-branch',
+    'table': '12',
+    'token': 'table-secret-12',
+  });
+
+  expect(context.restaurantId, 'scanserve-demo');
+  expect(context.branchId, 'main-branch');
+  expect(context.tableId, '12');
+  expect(context.tableToken, 'table-secret-12');
+  expect(
+    context.tableSessionId,
+    'table-session-scanserve-demo-main-branch-12-table-secret-12',
+  );
+  expect(
+    context.customerSessionId,
+    'customer-session-scanserve-demo-main-branch-12-table-secret-12',
+  );
+  expect(context.scopeKey, contains('/12/'));
+});
+```
+
+Each `expect` protects a different contract edge. The first three verify tenant, branch, and table alias mapping. The token assertion proves the secret is not dropped before it reaches session/cart creation. The two deterministic-ID assertions prevent two QR visits from sharing state accidentally. The `scopeKey` assertion catches a regression where table identity is omitted from route-scoped repository keys.
+
+The second test supplies both alias parameters and explicit canonical session IDs:
+
+```dart
+test('preserves explicit session IDs when the link contains canonical aliases', () {
+  final context = SessionContext.fromQueryParameters({
+    'tenant': 'scanserve-demo',
+    'branch': 'main-branch',
+    'table': '12',
+    'token': 'table-secret-12',
+    'tableSessionId': 'table-session-existing',
+    'customerSessionId': 'customer-session-existing',
+  });
+
+  expect(context.tableSessionId, 'table-session-existing');
+  expect(context.customerSessionId, 'customer-session-existing');
+  expect(context.toQueryParameters(), {
+    'restaurantId': 'scanserve-demo',
+    'branchId': 'main-branch',
+    'tableId': '12',
+    'tableSessionId': 'table-session-existing',
+    'customerSessionId': 'customer-session-existing',
+    'token': 'table-secret-12',
+  });
+});
+```
+
+This is a round-trip test: parse the customer-friendly QR aliases, then serialize the canonical internal keys used by subsequent GoRouter navigation. Add cases for missing values, blank values, canonical-only keys, and tokens containing URL-reserved characters whenever the resolver changes.
+
+### 8.3 `SessionBloc` test: the current gap and the recommended implementation
+
+`SessionBloc` is intentionally minimal: `SessionStarted` synchronously emits `SessionReady(event.context)` from [`session_bloc.dart`](../lib/features/session/presentation/bloc/session_bloc.dart). The current repository has no dedicated `SessionBloc` test; do not report one as existing coverage. A focused test should be added because it protects the route composition boundary without needing Firebase.
+
+A direct `blocTest` implementation is:
+
+```dart
+import 'package:bloc_test/bloc_test.dart';
+import 'package:flutter_test/flutter_test.dart';
+
+void main() {
+  const context = SessionContext(
+    restaurantId: 'scanserve-demo',
+    branchId: 'main-branch',
+    tableId: '12',
+    tableToken: 'test-token',
+    tableSessionId: 'table-session-test',
+    customerSessionId: 'customer-session-test',
+  );
+
+  blocTest<SessionBloc, SessionState>(
+    'emits SessionReady with the exact route context',
+    build: SessionBloc.new,
+    act: (bloc) => bloc.add(const SessionStarted(context)),
+    expect: () => [
+      isA<SessionReady>().having(
+        (state) => state.context,
+        'context',
+        context,
+      ),
+    ],
+  );
+}
+```
+
+The fixture is a complete immutable `SessionContext`, not merely a table number, because the test must prove that all scope fields survive the event boundary. `build` creates a fresh BLoC per test, `act` sends the production event, and `expect` checks the exact state type and object equality. If `SessionBloc` later performs asynchronous session initialization, replace the direct `expect` with `wait`/`emitsExactly` semantics and add a failure-state assertion.
+
+### 8.4 Repository doubles and `blocTest` state assertions
+
+A BLoC test should fake the repository interface, not mock Firestore SDK classes. The current tests use private fakes such as `_Repository`, `_OrderPermissionRepository`, `_MenuRepository`, and `_CartRepository`; the codebase does not currently contain a generated class named `MockRestaurantRepository`. When a shared named double is useful, use the following explicit pattern rather than making a fake depend on Firebase:
+
+```dart
+class MockRestaurantRepository implements CustomerRepository {
+  MockRestaurantRepository({
+    this.menu = const [],
+    this.orderStream = const Stream<CustomerOrder?>.empty(),
+  });
+
+  final List<MenuItem> menu;
+  final Stream<CustomerOrder?> orderStream;
+
+  @override
+  Future<List<MenuItem>> getActiveMenu() async => menu;
+
+  @override
+  Stream<CustomerOrder?> getActiveOrder() => orderStream;
+
+  @override
+  Future<CustomerOrder> submitOrder(List<CartLine> lines) async =>
+      CustomerOrder(
+        id: 'ORD-TEST',
+        lines: lines,
+        status: OrderStatus.pending,
+        createdAt: DateTime.utc(2026),
+      );
+
+  @override
+  Future<void> requestWaiter() async {}
+
+  @override
+  Future<void> requestPayment() async {}
+}
+```
+
+A fake repository has three jobs: return deterministic fixtures, expose a controllable stream, and capture inputs when the unit under test writes. It should not duplicate Firestore query construction. For a menu stream, use a `StreamController<MenuCatalog>.broadcast()` so the test can emit an Angular-created item after the BLoC has subscribed:
+
+```dart
+final repository = _StreamRepository();
+final bloc = MenuBloc(
+  getActiveMenu: GetActiveMenu(repository),
+  watchActiveMenu: WatchActiveMenu(repository),
+);
+final states = <MenuState>[];
+final subscription = bloc.stream.listen(states.add);
+
+bloc.add(const LoadMenu(
+  restaurantId: 'scanserve-demo',
+  branchId: 'main-branch',
+));
+await Future<void>.delayed(Duration.zero);
+repository.updates.add(_catalog('dashboard-item'));
+await Future<void>.delayed(Duration.zero);
+await Future<void>.delayed(Duration.zero);
+
+expect(
+  states.whereType<MenuLoaded>().last.catalog.items.single.name,
+  'dashboard-item',
+);
+```
+
+The two event-loop yields are deliberate. The first lets the BLoC process `LoadMenu` and attach to `watchActiveMenu`; the later yields let the stream event propagate through the use case and BLoC. Always cancel the subscription, close the BLoC, and close the controller in teardown. Otherwise a broadcast stream can keep a test alive or leak state into a later test.
+
+The customer facade test demonstrates an important failure-isolation assertion:
+
+```dart
+blocTest<CustomerCubit, CustomerState>(
+  'loads the menu when the active order stream is unauthorized',
+  build: () => CustomerCubit(_OrderPermissionRepository()),
+  act: (cubit) => cubit.load(),
+  expect: () => [
+    isA<CustomerState>()
+        .having((state) => state.loading, 'loading', false)
+        .having((state) => state.menu, 'menu', hasLength(1))
+        .having((state) => state.order, 'order', isNull)
+        .having((state) => state.message, 'message', isNull),
+  ],
+);
+```
+
+The repository’s `getActiveOrder()` emits a permission error, but the menu load must still complete. The chained `having` clauses assert the post-load state field by field: loading settled, menu data exists, active order degraded to `null`, and no misleading global error was shown. This protects the requirement that order tracking failure must not block menu rendering.
+
+### 8.5 Menu page widget harness
+
+[`menu_page_test.dart`](../test/features/menu/menu_page_test.dart) uses a reusable `_pumpMenuPage()` harness. The harness creates real `MenuBloc` and `CartBloc` instances but injects fake repositories through their use cases:
+
+```dart
+final menuRepository = _MenuRepository(catalog ?? _catalog);
+final cartRepository = _CartRepository();
+final menuBloc = MenuBloc(
+  getActiveMenu: GetActiveMenu(menuRepository),
+  watchActiveMenu: WatchActiveMenu(menuRepository),
+);
+final cartBloc = CartBloc(
+  addToCart: AddToCart(cartRepository),
+  removeFromCart: RemoveFromCart(cartRepository),
+  submitOrder: SubmitOrderUseCase(cartRepository),
+  initialState: CartInitial(
+    Cart.empty(
+      id: 'cart_active-customer-session',
+      restaurantId: 'scanserve-demo',
+      branchId: 'main-branch',
+      tableId: 'table-12',
+      tableSessionId: 'active-table-session',
+      customerSessionId: 'active-customer-session',
+    ),
+  ),
+);
+
+await tester.pumpWidget(
+  MaterialApp(
+    home: MultiBlocProvider(
+      providers: [
+        BlocProvider.value(value: menuBloc),
+        BlocProvider.value(value: cartBloc),
+      ],
+      child: const MenuPage(
+        restaurantId: 'scanserve-demo',
+        branchId: 'main-branch',
+        tableId: 'table-12',
+        tableSessionId: 'active-table-session',
+        customerSessionId: 'active-customer-session',
+      ),
+    ),
+  ),
+);
+await tester.pump();
+await tester.pump();
+```
+
+The fixture catalog contains root categories, child categories, an item under each child, and a direct-parent item. That combination is necessary to prove both recursive parent aggregation and the generated `General` bucket. `BlocProvider.value` is used because the test already owns the BLoC instances and needs to close them in `addTearDown`; use `BlocProvider(create: ...)` when the widget tree should own lifecycle instead.
+
+### 8.6 Widget interaction assertions
+
+The search test enters text into the actual `TextField`, pumps a frame, and checks both rendered results and BLoC state:
+
+```dart
+await tester.enterText(find.byType(TextField), 'yogurt');
+await tester.pump();
+
+expect(find.text('Fruit Yogurt'), findsOneWidget);
+expect(find.text('Spicy Noodles'), findsNothing);
+expect(fixture.menuBloc.state.searchQuery, 'yogurt');
+```
+
+The drawer test opens the real drawer, locates the `ExpansionTile`, asserts the explicit `Icons.expand_more` chevron, expands it, and then selects a child. This sequence proves the visual tree and the filtering predicate are connected rather than merely checking that category labels exist.
+
+The dynamic-count test adds `Drinks` with a direct `Iced coffee` item and a `Coffee` child containing `Cold brew`. It expects both the parent aggregate count and a `General` child, selects the parent to show both items, reopens the drawer, selects `Coffee`, and verifies that only `Cold brew` remains. This is the regression test for ID-based matching and direct-parent aggregation.
+
+The cart feedback test taps the `Add to order` tooltip and asserts both the SnackBar text and quantity badge. The bottom-sheet test enters a search, adds an item, opens `View order`, asserts the rendered line, closes the sheet through `Navigator`, and finally checks that the search controller and `menuBloc.state.searchQuery` still contain `yogurt`. `pumpAndSettle()` is used after drawer/sheet transitions because animations and route overlays must finish before querying the tree.
+
+### 8.7 Flutter emulator integration and E2E procedure
+
+The repository currently relies primarily on application tests plus manual/emulator integration rather than a large checked-in Firebase integration suite. For a real integration run:
+
+1. Start Auth, Firestore, and Functions emulators.
+2. Run `cd backend && npm run seed:menu`.
+3. Confirm a menu document exists at `restaurants/scanserve-demo/menu/{actualDocumentId}`.
+4. Open Flutter with `lib/main_dev.dart` and a QR-shaped URL containing `tenant`, `branch`, `table`, and `token`.
+5. Confirm the repository log prints the same tenant/branch/path and maps `doc.id` to `MenuItem.id`.
+6. Add an item and inspect `carts/cart_{customerSessionId}`. Compare every cart line `menuItemId` with the actual menu document ID.
+7. Submit the cart and capture the callable `requestId`.
+8. Verify `orders/{orderId}`, `restaurants/scanserve-demo/orders/{orderId}`, `orderItems/{orderItemId}`, and `orderRequests/{requestId}`.
+9. Log in to Angular, move the order through `ACCEPTED`, `PREPARING`, `READY`, and `SERVED`, and verify Flutter’s active-order stream receives the mirrored status.
+
+Record the exact failing path when this procedure fails. “The menu is visible” is not enough: an ID mismatch, missing cart prefix, missing session, or unauthorized order query can still break checkout.
+
+### 8.8 Coverage additions checklist
+
+When changing the session contract, add alias/round-trip tests before modifying router code. When changing a mapper, test missing timestamps, missing `branchId`, availability variants, archive flags, and Firestore document-ID precedence. When changing menu filtering, include one root item, one child item, one parent with no children, and a direct-parent item that forces the General bucket. When changing cart submission, assert the canonical cart ID, notes/modifiers, callable envelope, and that the cart is not silently reused after successful submission.
 
 When adding a new field, update the domain entity, DTO/mapper, repository, UI state, and a test fixture. Prefer a focused pure mapper or context test before writing a Firebase integration test. For Firestore integration, seed the emulator and assert both path and document ID; a document existing under the wrong parent path is functionally absent to the other application.
 
 ## 9. Maintenance rules for future engineers
 
-Keep the canonical identifiers in `ScanServeFirestoreContract` and `docs/specifications/firestore-contract.md` synchronized. Do not introduce a new `tenantId`/`restaurantId` interpretation without updating Angular, backend, seed scripts, rules, and tests.
+Keep the canonical identifiers in `ScanServeFirestoreContract` and `specifications/firestore-contract.md` synchronized. Do not introduce a new `tenantId`/`restaurantId` interpretation without updating Angular, backend, seed scripts, rules, and tests.
 
 Treat `SessionContext` as the only route-to-domain boundary for QR identity. Do not parse `GoRouterState.uri.queryParameters` independently in widgets. If the deep-link contract changes, add an alias rather than removing the existing names until all printed QR tags have been rotated.
 
@@ -381,8 +665,8 @@ Prefer resilient reads that can tolerate missing optional fields, but do not sil
 
 ## References
 
-[^1]: [Flutter Architecture Specification — Part 1](../specifications/014-flutter-architecture-part-1.md) and [System Overview](../architecture/001-system-overview.md)
-[^2]: [Firestore Contract](firestore-contract.md)
+[^1]: [Flutter Architecture Specification — Part 1](./specifications/014-flutter-architecture-part-1.md) and [System Overview](./architecture/001-system-overview.md)
+[^2]: [Firestore Contract](specifications/firestore-contract.md)
 [^3]: [Flutter common bootstrap](../lib/main_common.dart)
 [^4]: [Flutter service locator](../lib/core/di/service_locator.dart)
 [^5]: [Flutter router](../lib/app/routes/router.dart)

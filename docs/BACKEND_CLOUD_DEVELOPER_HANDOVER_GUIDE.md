@@ -340,29 +340,280 @@ The backend logs menu paths, IDs, snapshot existence, selected nested paths, ten
 
 ## 11. Testing and quality gates
 
+Backend testing must cover two different trust boundaries. Service/validator tests run in Node and prove that malformed or contradictory payloads are rejected before a transaction writes data. Firestore Rules tests run as authenticated and unauthenticated client contexts and prove that direct reads/writes are allowed or denied. Emulator E2E tests combine Auth, Rules, callable functions, and the seeded document graph. Admin SDK calls from a Cloud Function bypass Firestore Rules, so a successful service transaction alone is not evidence that a browser client has permission to perform the same operation.
+
 Backend code should pass:
 
 ```bash
 cd backend
-npm run lint
-npm run build
+npm run lint       # tsc --noEmit
+npm run build      # emits lib/index.js
+npm run seed:menu  # seeds the local Auth/Firestore graph
 ```
 
-The most important test categories are:
+The current backend package has no `npm test` script and no checked-in backend `*.spec.ts` or Rules `assertFails`/`assertSucceeds` suite. The following examples are the implementation-ready test design for the repository: keep existing operational/emulator checks accurate, and add these suites when introducing a test runner and `@firebase/rules-unit-testing` project. Do not describe the recommended examples as tests that already run in CI.
 
-| Test category | Assertions |
-|---|---|
-| Validator tests | Envelope, timestamp, required IDs, cart-vs-inline requirement, item quantity, notes, modifiers, status enum. |
-| Order service tests | Idempotency, canonical cart lookup, nested menu resolution, price/availability/branch validation, mirrored writes, cart clearing. |
-| Status service tests | Staff profile lookup, tenant/branch/role permission, transition map, top-level/nested updates. |
-| Rules tests | Anonymous menu/session/cart/order behavior, authenticated staff access, cross-tenant denial, legacy path behavior. |
-| Emulator integration | Seeded Auth + Firestore, real callable request, order documents, status transition, and staff authorization. |
+### 11.1 Test taxonomy and contract ownership
 
-When writing a new service test, assert both the document path and the document ID. A Firestore document with the right fields under a different collection path is not an equivalent record.
+| Layer | Current/recommended location | What it must prove | Typical failure it localizes |
+|---|---|---|---|
+| Validator unit | Recommended `backend/src/validators/*.spec.ts` | Envelope, nested payload compatibility, required IDs, cart-vs-inline rule, quantities, notes/modifiers, and status enum. | `INVALID_REQUEST` before Firestore is touched. |
+| Order service unit | Recommended `backend/src/services/order_service.spec.ts` | Canonical cart lookup, session fallback scope, nested menu resolution, server price, idempotency, mirrored writes, and cart clearing. | Wrong path, ID, price, availability, or transaction branch. |
+| Status service unit | Recommended `backend/src/services/order_status_service.spec.ts` | Staff profile/role/tenant/branch authorization and exact lifecycle transition. | `UNAUTHORIZED` or invalid transition. |
+| Rules unit/integration | Recommended separate Rules test package | `assertSucceeds` for intended client operations and `assertFails` for cross-tenant/privileged operations. | Direct Firestore permission mismatch. |
+| Callable emulator | Operational workflow today; recommended automated suite | Firebase Auth context, callable envelope, response envelope, and real transaction writes. | Missing function export, auth context, seed data, or validator mismatch. |
+| Cross-stack E2E | Recommended script/CI job | Angular-created menu/table → Flutter QR session/cart → callable order → Angular status transition. | Contract drift between apps. |
+
+For every service test, assert both the Firestore **collection path** and **document ID**. `restaurants/scanserve-demo/menu/or4h...` and `menu/or4h...` are different records even if their fields are identical.
+
+### 11.2 Validator unit tests
+
+The validator entry points are [`parseSubmitOrder`](../backend/src/validators/callable_request_validator.ts) and [`parseUpdateOrderStatus`](../backend/src/validators/callable_request_validator.ts). They accept `unknown`, so tests should treat inputs as untrusted JSON rather than passing a typed object that could hide a malformed runtime value.
+
+A valid inline request should parse without requiring `cartId`:
+
+```typescript
+it('accepts inline items when cartId is omitted', () => {
+  const request = parseSubmitOrder({
+    requestId: 'request-inline-1',
+    timestamp: '2026-08-25T14:00:00.000Z',
+    payload: {
+      restaurantId: 'scanserve-demo',
+      customerSessionId: 'customer-session-1',
+      items: [{
+        menuItemId: 'firestore-menu-id',
+        quantity: 2,
+        notes: 'No cilantro',
+        modifiers: ['extra lime'],
+      }],
+    },
+  });
+
+  expect(request.requestId).toBe('request-inline-1');
+  expect(request.payload.cartId).toBeUndefined();
+  assert.deepEqual(request.payload.items?.[0], {
+    menuItemId: 'firestore-menu-id',
+    quantity: 2,
+    notes: 'No cilantro',
+    modifiers: ['extra lime'],
+  });
+});
+```
+
+Use Node’s `assert` module (or the equivalent matcher from the chosen test runner) so the parsed runtime object is compared deeply rather than by reference:
+
+```typescript
+assert.deepEqual(request.payload.items?.[0], {
+  menuItemId: 'firestore-menu-id',
+  quantity: 2,
+  notes: 'No cilantro',
+  modifiers: ['extra lime'],
+});
+```
+
+Add negative cases for missing `requestId`, invalid ISO timestamp, missing `restaurantId`, missing `customerSessionId`, an empty `items` array, zero/decimal/unsafe quantity, non-string notes, non-string modifiers, and an envelope with neither `cartId` nor `items`. Add compatibility cases where `items` is under one extra `payload` or `data` wrapper and where `note` is normalized to `notes`.
+
+For status parsing, assert both accepted and rejected values:
+
+```typescript
+assert.equal(
+  parseUpdateOrderStatus({
+    requestId: 'status-1',
+    timestamp: '2026-08-25T14:00:00.000Z',
+    payload: {
+      restaurantId: 'scanserve-demo',
+      orderId: 'order-1',
+      status: 'PREPARING',
+    },
+  }).payload.status,
+  'PREPARING',
+);
+
+assert.throws(
+  () => parseUpdateOrderStatus({
+    requestId: 'status-bad',
+    timestamp: '2026-08-25T14:00:00.000Z',
+    payload: {
+      restaurantId: 'scanserve-demo',
+      orderId: 'order-1',
+      status: 'SERVED_NOW',
+    },
+  }),
+  /status must be ACCEPTED, PREPARING, READY, or SERVED/,
+);
+```
+
+These tests are intentionally independent of Firestore. If a validator test needs an emulator, the boundary is too high and the failure will be harder to diagnose.
+
+### 11.3 OrderService transaction tests
+
+`OrderService` is best tested against the Firestore emulator or a transaction-aware fake, not against a shallow `get()` mock. The key fixture is a complete graph:
+
+```text
+restaurants/scanserve-demo
+restaurants/scanserve-demo/branches/main-branch
+restaurants/scanserve-demo/menu/menu-item-1
+customerSessions/customer-session-1
+carts/cart_customer-session-1
+```
+
+The menu document must use `menu-item-1` as its Firestore document ID. Its data should include `restaurantId`, `branchId`, `price`, `isAvailable: true`, `status: 'in_stock'`, and `isArchived: false`. The cart fixture should contain `menuItemId: 'menu-item-1'`, a positive quantity, and the canonical `cart_customer-session-1` ID.
+
+The test should submit a request with a unique `requestId`, then assert the transaction results:
+
+```typescript
+const response = await service.submitOrder({
+  requestId: 'request-order-1',
+  timestamp: '2026-08-25T14:00:00.000Z',
+  payload: {
+    restaurantId: 'scanserve-demo',
+    customerSessionId: 'customer-session-1',
+    cartId: 'cart_customer-session-1',
+  },
+});
+
+assert.equal(response.orderId !== undefined, true);
+
+const order = await db.doc(`orders/${response.orderId}`).get();
+const nested = await db.doc(
+  `restaurants/scanserve-demo/orders/${response.orderId}`,
+).get();
+const request = await db.doc('orderRequests/request-order-1').get();
+
+assert.equal(order.exists, true);
+assert.equal(nested.exists, true);
+assert.equal(request.exists, true);
+assert.equal(order.data()?.restaurantId, 'scanserve-demo');
+assert.equal(nested.data()?.customerSessionId, 'customer-session-1');
+assert.equal(order.data()?.items[0].menuItemId, 'menu-item-1');
+assert.equal(order.data()?.items[0].unitPrice, 85000);
+```
+
+The important assertion is not only that an order exists. It checks the exact menu document ID and the server-resolved `unitPrice`; a client-supplied fake price must not survive. Add assertions for `orderItems/{orderItemId}`, `status: 'PENDING'`, table/session fields, notes, and cart clearing/archival.
+
+Test each validation branch separately: missing nested menu document, wrong restaurant, wrong branch, unavailable status, archived item, non-integer price, empty cart, missing session, and legacy cart ID. In development mode, test the explicit fallback path and assert that the fallback writes the correct top-level `customerSessions/{id}`, `carts/cart_{id}`, restaurant, branch, or menu document rather than accidentally creating a nested `customerSessions/{restaurantId}` parent.
+
+### 11.4 Idempotency assertions
+
+Idempotency is anchored by `orderRequests/{requestId}`. A retry with the same request ID and restaurant must return the original order summary and must not create a second order or second set of order items. The test should call the service twice:
+
+```typescript
+const first = await service.submitOrder(request);
+const second = await service.submitOrder(request);
+
+assert.equal(second.orderId, first.orderId);
+
+const orders = await db.collection('orders')
+  .where('requestId', '==', request.requestId)
+  .get();
+assert.equal(orders.size, 1);
+
+const requestSnapshot = await db.doc(`orderRequests/${request.requestId}`).get();
+assert.equal(requestSnapshot.data()?.orderId, first.orderId);
+```
+
+Also test a request-ID collision across restaurants. The expected behavior is either a clear conflict error or a tenant-safe independent request, never returning restaurant A’s order to restaurant B. Test a retry after a client timeout and a retry after the first response was delivered; both are ordinary mobile/web failure modes.
+
+### 11.5 OrderStatusService unit tests
+
+Build one staff fixture with `authUid: 'staff-uid'`, `restaurantId: 'scanserve-demo'`, `branchId: 'main-branch'`, `isActive: true`, and a role with `permissions: ['orders.updateStatus']`. Build one order at each lifecycle state. For each valid transition, invoke the service with the authenticated UID and assert both mirrored documents receive the new status and milestone timestamp.
+
+The transition table must be tested as a matrix:
+
+| Current | Accepted next state | Example negative case |
+|---|---|---|
+| `PENDING` | `ACCEPTED` | `PENDING → READY` |
+| `ACCEPTED` | `PREPARING` | `ACCEPTED → SERVED` |
+| `PREPARING` | `READY` | `PREPARING → ACCEPTED` |
+| `READY` | `SERVED` | `READY → PREPARING` |
+
+Add negative tests for no Auth UID, missing staff profile, inactive staff, cross-tenant staff, branch mismatch, missing role, inactive role, missing `orders.updateStatus`, missing order, and stale/current status mismatch. The purpose is to prove authorization and state-machine behavior, not merely that the Firestore update method was called.
+
+### 11.6 Firestore Rules tests with `assertSucceeds` and `assertFails`
+
+Rules tests need a separate client context because Admin SDK access bypasses Rules. With the Firebase Rules Unit Testing library, create an unauthenticated context for customer behavior and an authenticated context for staff behavior. The exact test package/configuration is not currently checked into this repository, but the intended shape is:
+
+```typescript
+const unauthenticated = initializeTestEnvironment({
+  projectId: 'scanserve-rules-test',
+  firestore: { rules: readFileSync('../firestore.rules', 'utf8') },
+});
+
+it('allows anonymous customers to read active nested menu items', async () => {
+  const db = unauthenticated.unauthenticatedContext().firestore();
+  await assertSucceeds(
+    getDoc(doc(db, 'restaurants/scanserve-demo/menu/menu-item-1')),
+  );
+});
+
+it('denies anonymous reads of staff profiles', async () => {
+  const db = unauthenticated.unauthenticatedContext().firestore();
+  await assertFails(getDoc(doc(db, 'staff/staff-uid')));
+});
+```
+
+Seed the Rules test environment with `withSecurityRulesDisabled()` before each test so fixtures exist independently of the Rules under test. Then run the operation through the normal context. This separation matters: using Admin SDK to seed and then using Admin SDK to assert would bypass the very permission boundary the test is intended to exercise.
+
+Cover the positive customer cases: public restaurant metadata, active menu read, own active session create/read/update, own cart create/update, valid active-order read, valid waiter/payment request create, and valid pending order create where the current Rules permit it. Cover negative cases: cross-tenant menu/customer-session/cart/order access, anonymous staff/role reads, direct top-level order writes, archived/inactive order reads, malformed restaurant IDs, and staff writes outside their intended tenant.
+
+Use `assertSucceeds()` for an operation that should resolve without a Rules error and `assertFails()` for an operation that should reject. Assert the error class only when useful; the primary property is allow/deny. If a query is part of the client behavior, test the query rather than only a single `getDoc`, because Rules evaluate the query as a whole and a query that could return unauthorized documents is rejected.
+
+### 11.7 Callable emulator tests and payload verification
+
+A callable emulator test must use a real callable client with the same envelope the Flutter/Angular clients send. For `submitOrder`, verify the request reaches the function with `requestId`, `timestamp`, and nested `payload`, and verify the response has `success`, the same `requestId`, `data`/`error`, and `serverTimestamp`.
+
+A Node-oriented integration outline is:
+
+```typescript
+const functions = getFunctions(app, 'us-central1');
+connectFunctionsEmulator(functions, '127.0.0.1', 5001);
+const submitOrder = httpsCallable(functions, 'submitOrder');
+
+const result = await submitOrder({
+  requestId: 'emulator-request-1',
+  timestamp: new Date().toISOString(),
+  payload: {
+    restaurantId: 'scanserve-demo',
+    customerSessionId: 'customer-session-1',
+    cartId: 'cart_customer-session-1',
+  },
+});
+
+assert.equal(result.data.success, true);
+assert.equal(result.data.requestId, 'emulator-request-1');
+assert.equal(typeof result.data.serverTimestamp, 'string');
+```
+
+The exact Firebase client initialization belongs in the integration harness, not production backend code. For `updateOrderStatus`, sign in the seeded Auth emulator user first so the callable request contains `request.auth.uid`; then assert the status succeeds for the seeded staff profile and fails for an unseeded or cross-tenant account. Verify the same payload is rejected when `status` attempts an invalid jump.
+
+### 11.8 Emulator E2E procedure
+
+The current operational E2E path is:
+
+1. Start Auth, Firestore, Functions, and the Emulator UI.
+2. Run `cd backend && npm run seed:menu`.
+3. Verify the seeded Auth user, `staff/{uid}`, role, restaurant, branch, categories, and nested menu documents.
+4. Use Angular to create/update a menu item and a table; verify their exact nested paths and schema fields.
+5. Open the generated QR URL in Flutter and capture the resolved tenant/branch/table/token/session IDs.
+6. Add the Angular-created item in Flutter. Verify `MenuItem.id` equals the Firestore menu document ID.
+7. Verify `carts/cart_{customerSessionId}` and its `menuItemId` values.
+8. Submit the order, capture the callable request ID, and verify the success envelope.
+9. Verify `orders/{orderId}`, `restaurants/{restaurantId}/orders/{orderId}`, `orderItems/{orderItemId}`, and `orderRequests/{requestId}`.
+10. Repeat the same request ID and verify idempotency returns the same order rather than duplicating it.
+11. Sign into Angular with the seeded staff account and move the order through every valid status.
+12. Confirm Flutter observes the status changes and confirm invalid/cross-tenant mutations fail.
+
+At each step record path, document ID, tenant, branch, session, and request ID. “The order appeared in the UI” is not sufficient evidence of correct persistence; inspect both mirrored order documents and the idempotency record.
+
+### 11.9 Coverage additions checklist
+
+When changing `callable_request_validator.ts`, add valid and invalid unknown-input tests before changing service code. When changing `OrderService`, add a fixture that includes the restaurant and branch metadata, then assert nested menu lookup, server price, mirrored writes, cart cleanup, and idempotency. When changing Rules, add both `assertSucceeds` and `assertFails` cases for the affected path and at least one cross-tenant denial. When changing the seed script, rerun the emulator setup and assert Auth UID → staff profile → role permission linkage. When changing a callable response, assert request-ID echoing and failure envelope shape.
+
+When adding an FCM notification implementation later, add a post-transaction integration test that proves delivery is triggered only after a committed order/status change, invalid tokens are removed, and a retry does not duplicate the business write. There is no active FCM implementation today, so notification tests should not be added to the current “passing backend tests” claim until the feature exists.
 
 ## 12. Maintenance rules
 
-Keep `docs/specifications/firestore-contract.md`, `backend/src/shared/firestore_contract.ts`, Flutter `ScanServeFirestoreContract`, Angular `restaurant-context.ts`, seed scripts, Rules, indexes, and UI payload builders synchronized. Any new collection or renamed field must be reviewed across all three applications.
+Keep `specifications/firestore-contract.md`, `backend/src/shared/firestore_contract.ts`, Flutter `ScanServeFirestoreContract`, Angular `restaurant-context.ts`, seed scripts, Rules, indexes, and UI payload builders synchronized. Any new collection or renamed field must be reviewed across all three applications.
 
 Keep security decisions in two layers: Rules for direct Firestore access and services for callable business operations. Keep callable wrappers small and make errors structured. Use transactions for order/status mutations and idempotency records for retry safety.
 
@@ -372,9 +623,9 @@ Do not log QR secret tokens, passwords, Firebase credentials, or full personal d
 
 ## References
 
-[^1]: [System Overview](../architecture/001-system-overview.md) and [Cloud Functions Specification](../specifications/013-cloud-functions-part-1.md)
-[^2]: [Firestore Contract](firestore-contract.md)
-[^3]: [Firestore Design](../architecture/003-firestore-design.md)
+[^1]: [System Overview](./architecture/001-system-overview.md) and [Cloud Functions Specification](./specifications/013-cloud-functions-part-1.md)
+[^2]: [Firestore Contract](specifications/firestore-contract.md)
+[^3]: [Firestore Design](./architecture/003-firestore-design.md)
 [^4]: [Cloud Functions source tree](../backend/src)
 [^5]: [Backend package scripts](../backend/package.json)
 [^6]: [OrderService](../backend/src/services/order_service.ts)

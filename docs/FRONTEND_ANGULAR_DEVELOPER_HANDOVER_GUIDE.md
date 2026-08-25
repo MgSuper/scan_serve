@@ -349,6 +349,8 @@ The backend validates the envelope, requires `request.auth.uid`, finds the staff
 
 ## 9. Testing and quality gates
 
+Angular testing is layered around the same contract boundaries used by production code. Pure Jasmine specs prove deterministic URL and mapping utilities; repository/store specs replace Firebase adapters with synchronous or controllable Observables; component specs exercise standalone templates through `ComponentFixture`; full Karma runs catch template, DI, and browser integration errors; emulator E2E checks prove Auth, Rules, callable authorization, and Firestore paths agree with Flutter and the backend.
+
 Run the dashboard checks from `apps/dashboard`:
 
 ```bash
@@ -357,27 +359,307 @@ CHROME_BIN=/usr/bin/chromium npm test -- --watch=false --browsers=ChromeHeadless
 npm run build
 ```
 
-The Table Management tests are intentionally layered:
+Run one Karma spec while iterating by passing the project’s supported Jasmine filter or temporarily focusing the spec. Remove any `fit`/`fdescribe` before committing. The test command must remain headless in CI so template rendering and browser APIs are exercised consistently.
 
-| Test | Purpose |
-|---|---|
-| `table-link.spec.ts` | Verifies exact URL keys, base path, and URL encoding. |
-| `qr-code.pipe.spec.ts` | Verifies a table link becomes a PNG data URL. |
-| `table.store.spec.ts` | Verifies live rows load and create requests are forced to the active branch. |
-| `menu-management.component.spec.ts` | Verifies dynamic parent/child/custom category behavior and schema-ready menu input. |
-| Kitchen/Menu store specs | Verify stream state, save/error handling, and operational updates. |
+### 9.1 Test taxonomy and ownership
 
-For a live emulator check:
+| Layer | Current example | What it proves | What it deliberately does not prove |
+|---|---|---|---|
+| Pure Jasmine | [`table-link.spec.ts`](../apps/dashboard/src/app/features/tables/domain/table-link.spec.ts) | Exact QR URL base, query-key contract, and URL encoding. | Firestore write or QR image rendering. |
+| Pipe/utility | [`qr-code.pipe.spec.ts`](../apps/dashboard/src/app/features/tables/presentation/qr-code.pipe.spec.ts) | `qrcode` converts the canonical link to a PNG data URL. | Browser popup/printing and persisted table data. |
+| Signal store | [`table.store.spec.ts`](../apps/dashboard/src/app/features/tables/presentation/state/table.store.spec.ts) | Repository stream initialization, signal settlement, and active-branch enforcement. | Firebase Rules or actual `onSnapshot`. |
+| Component | [`menu-management.component.spec.ts`](../apps/dashboard/src/app/features/menu/presentation/components/menu-management.component.spec.ts) | Route scope, dynamic parent/child cascade, inline child creation, and payload fields. | Backend callable price/status enforcement. |
+| Feature store/use case | Kitchen/Menu store specs | Loading/error/save state and delegation to domain repositories. | Deployed Functions and production Auth. |
+| Emulator integration | Auth/Firestore/Functions startup plus seed | Real staff login, Rules, nested paths, callable auth, and transaction writes. | Browser/device performance and external notification delivery. |
+| E2E | Angular + Flutter + Functions | Admin-created table/menu → QR customer session → order → kitchen transition. | A replacement for focused unit tests; diagnosis is slower. |
+
+### 9.2 Pure URL contract test
+
+[`table-link.spec.ts`](../apps/dashboard/src/app/features/tables/domain/table-link.spec.ts) is deliberately a pure test with no `TestBed`:
+
+```typescript
+describe('buildTableQrUrl', () => {
+  it('builds the canonical tenant-scoped table deep link', () => {
+    expect(
+      buildTableQrUrl({
+        restaurantId: 'scanserve-demo',
+        branchId: 'main-branch',
+        tableNo: '12 A',
+        secretToken: 'secret+token',
+      }),
+    ).toBe(
+      'https://scanserve.app/menu?tenant=scanserve-demo&branch=main-branch&table=12+A&token=secret%2Btoken',
+    );
+  });
+});
+```
+
+The input contains a space and a plus sign specifically to prove `URLSearchParams` encoding. The expected string protects four things at once: the stable `https://scanserve.app/menu` base, the customer-facing keys `tenant`/`branch`/`table`/`token`, the order of serialized parameters, and correct escaping. This test is valuable because a QR tag can scan successfully while still routing to the wrong tenant if one key is renamed or omitted.
+
+Add pure cases for an empty token policy, Unicode table labels, and any future canonical-key aliases. Do not call Firestore in this spec; URL construction must remain a deterministic domain utility.
+
+### 9.3 QR pipe test and asynchronous Observables
+
+[`qr-code.pipe.spec.ts`](../apps/dashboard/src/app/features/tables/presentation/qr-code.pipe.spec.ts) tests the pipe without a component fixture:
+
+```typescript
+it('renders a QR data URL for a table deep link', async () => {
+  const dataUrl = await firstValueFrom(
+    new QrCodePipe().transform(
+      'https://scanserve.app/menu?tenant=scanserve-demo&branch=main-branch&table=12&token=test-token',
+    ),
+  );
+
+  expect(dataUrl).toMatch(/^data:image\/png;base64,/);
+});
+```
+
+`transform()` returns an Observable because QR generation is asynchronous. `firstValueFrom()` turns the first emission into a Promise, and `async/await` makes the spec fail if the Observable errors or never emits. The regular expression checks the data URL MIME/prefix and avoids asserting the entire base64 payload, which would be implementation-specific. Add an error-path test if the pipe exposes one; the expected behavior is a handled error state rather than a broken `<img>` binding.
+
+### 9.4 Signal-store test with `TestBed` provider overrides
+
+[`table.store.spec.ts`](../apps/dashboard/src/app/features/tables/presentation/state/table.store.spec.ts) is the canonical signal-store test. The fake repository implements the domain abstraction and returns `of([table])`, which emits synchronously and completes:
+
+```typescript
+class FakeTableRepository extends TableRepository {
+  readonly table: RestaurantTable = {
+    id: 'table-12',
+    restaurantId: 'scanserve-demo',
+    branchId: 'main-branch',
+    tableNo: '12',
+    zone: 'Main dining',
+    capacity: 4,
+    qrUrl: 'https://scanserve.app/menu?...',
+    secretToken: 'test',
+    status: 'AVAILABLE',
+    createdAt: new Date('2026-01-01T00:00:00.000Z'),
+    updatedAt: new Date('2026-01-01T00:00:00.000Z'),
+  };
+  lastInput: CreateTableInput | null = null;
+
+  override watchTables(): Observable<readonly RestaurantTable[]> {
+    return of([this.table]);
+  }
+
+  override createTable(
+    _restaurantId: string,
+    input: CreateTableInput,
+  ): Observable<RestaurantTable> {
+    this.lastInput = input;
+    return of(this.table);
+  }
+}
+```
+
+The spec replaces the production repository through Angular DI:
+
+```typescript
+TestBed.configureTestingModule({
+  providers: [
+    TableStore,
+    { provide: TableRepository, useClass: FakeTableRepository },
+  ],
+});
+const store = TestBed.inject(TableStore);
+const repository = TestBed.inject(TableRepository) as FakeTableRepository;
+```
+
+`TestBed` creates the same injectable graph used by the application while `useClass` prevents any Firebase connection. The spec initializes scope and asserts signals as functions:
+
+```typescript
+store.initialize('scanserve-demo', 'main-branch');
+expect(store.tables()).toEqual([repository.table]);
+expect(store.loading()).toBeFalse();
+
+store
+  .create({
+    tableNo: '13',
+    zone: 'Patio',
+    capacity: 2,
+    branchId: 'other-branch',
+  })
+  .subscribe();
+
+expect(repository.lastInput).toEqual({
+  tableNo: '13',
+  zone: 'Patio',
+  capacity: 2,
+  branchId: 'main-branch',
+});
+```
+
+Calling `store.tables()` reads the current Angular Signal value; it is not a property access. The first assertion proves the synchronous stream reached the signal, and the second proves `loading` settled to false rather than remaining stuck. The final assertion is a security-oriented state test: a caller-supplied `other-branch` is rewritten to the active branch before the repository sees it.
+
+If the fake uses `Subject` or `ReplaySubject` instead of `of`, retain the subject in the test and call `next()` after initialization. Then assert each signal after the emission and complete the subject in teardown. This tests live update propagation without opening a native Firestore listener.
+
+### 9.5 ComponentFixture and dynamic menu form tests
+
+[`menu-management.component.spec.ts`](../apps/dashboard/src/app/features/menu/presentation/components/menu-management.component.spec.ts) demonstrates how to test a standalone Angular component while keeping route and repositories deterministic. `imports: [MenuManagementComponent]` imports the standalone component directly; no NgModule is needed. `ComponentFixture<MenuManagementComponent>` owns the component instance and rendered DOM:
+
+```typescript
+let fixture: ComponentFixture<MenuManagementComponent>;
+let component: MenuManagementComponent;
+let repository: FakeMenuRepository;
+let categoryRepository: FakeMenuCategoryRepository;
+
+beforeEach(async () => {
+  await TestBed.configureTestingModule({
+    imports: [MenuManagementComponent],
+    providers: [
+      FakeMenuRepository,
+      { provide: MenuRepository, useExisting: FakeMenuRepository },
+      FakeMenuCategoryRepository,
+      { provide: MenuCategoryRepository, useExisting: FakeMenuCategoryRepository },
+      {
+        provide: ActivatedRoute,
+        useValue: {
+          paramMap: of(convertToParamMap({ restaurantId: 'restaurant-1' })),
+          queryParamMap: of(convertToParamMap({ branchId: 'branch-7' })),
+        },
+      },
+    ],
+  }).compileComponents();
+
+  fixture = TestBed.createComponent(MenuManagementComponent);
+  component = fixture.componentInstance;
+  repository = TestBed.inject(FakeMenuRepository);
+  categoryRepository = TestBed.inject(FakeMenuCategoryRepository);
+  fixture.detectChanges();
+});
+```
+
+The `useExisting` bindings ensure the token used by the component resolves to the same fake instance retrieved by the spec, so the test can inspect `createdInput`. The `ActivatedRoute` override emits `ParamMap` values through `of`, which simulates the route observables without a real router. `fixture.detectChanges()` runs the initial template/effect cycle and starts category subscriptions; omitting it can make the component appear uninitialized even though construction succeeded.
+
+The fake category repository emits two parents and two children only when the requested parent is `mains`:
+
+```typescript
+override watchParentCategories(
+  _restaurantId: string,
+  _branchId: string,
+): Observable<readonly MenuCategory[]> {
+  return of(this.parents);
+}
+
+override watchSubCategories(
+  _restaurantId: string,
+  _branchId: string,
+  parentCategoryId: string,
+): Observable<readonly MenuCategory[]> {
+  return of(parentCategoryId === 'mains' ? this.children : []);
+}
+```
+
+The cascade assertion first proves route-scoped parent loading, then calls the same handler used by the template:
+
+```typescript
+expect(component.parentCategories().map((category) => category.id)).toEqual([
+  'mains',
+  'drinks',
+]);
+
+component.openCreate();
+component.onParentCategoryChanged('mains');
+
+expect(component.subCategories().map((category) => category.name)).toEqual([
+  'Soups',
+  'Spicy Noodles',
+]);
+```
+
+The returned signal is read with `subCategories()`. This verifies both the Observable-to-signal update and the parent-ID cascade. The child payload test selects `mains-soups`, calls `save()`, and uses `jasmine.objectContaining`:
+
+```typescript
+expect(repository.createdInput).toEqual(
+  jasmine.objectContaining({
+    branchId: 'branch-7',
+    category: 'Mains',
+    categoryId: 'mains-soups',
+    categoryName: 'Soups',
+    parentCategoryId: 'mains',
+    imageUrl: 'https://placehold.co/640x480/png?text=ScanServe+Dish',
+    availability: 'in_stock',
+  }),
+);
+```
+
+`objectContaining` focuses the test on contract fields while allowing unrelated audit values to evolve. The inline-child test also checks the category repository input (`drinks-seasonal`, `parentCategoryId: 'drinks'`) before checking the menu payload. The root-category test asserts `parentCategoryId: null`, which prevents stale child selection from leaking into a top-level menu item.
+
+### 9.6 RxJS stream testing: synchronous, async, and marble styles
+
+Most current feature fakes use `of(...)` because it makes store tests deterministic and synchronous. Use `firstValueFrom()` for one asynchronous emission, `Subject`/`ReplaySubject` to control multiple emissions, and `fakeAsync`/`tick` when the production code schedules work with timers or Angular change detection.
+
+A repository stream test with a controllable subject can look like this:
+
+```typescript
+it('updates the menu signal when a new snapshot arrives', fakeAsync(() => {
+  const snapshots$ = new ReplaySubject<readonly MenuItem[]>(1);
+  const repository = jasmine.createSpyObj<MenuRepository>('MenuRepository', [
+    'watchMenu',
+  ]);
+  repository.watchMenu.and.returnValue(snapshots$.asObservable());
+
+  TestBed.configureTestingModule({
+    providers: [MenuStore, { provide: MenuRepository, useValue: repository }],
+  });
+  const store = TestBed.inject(MenuStore);
+
+  store.initialize('scanserve-demo', 'main-branch');
+  snapshots$.next([item('first')]);
+  tick();
+  expect(store.items().map((item) => item.name)).toEqual(['first']);
+
+  snapshots$.next([item('first'), item('second')]);
+  tick();
+  expect(store.items()).toHaveSize(2);
+
+  snapshots$.complete();
+}));
+```
+
+Use `fakeAsync` only when the code under test requires virtual time; otherwise a normal spec with `firstValueFrom` is easier to understand. Always complete custom subjects in teardown to avoid listener leaks.
+
+The repository does not currently check in marble tests, but marble testing is appropriate for complex debounce, retry, error-recovery, or combination logic. A `TestScheduler` test should describe cold inputs and expected output frames:
+
+```typescript
+it('debounces menu search before querying', () => {
+  testScheduler.run(({ cold, expectObservable }) => {
+    const search$ = cold('a--b----|', { a: 'ph', b: 'pho' });
+    const result$ = search$.pipe(debounceTime(300, testScheduler));
+    expectObservable(result$).toBe('---b---|', { b: 'pho' });
+  });
+});
+```
+
+Use the project’s RxJS version and inject the scheduler into operators that need deterministic virtual time. Do not add a marble test merely to test a Firestore `onSnapshot` wrapper; a subject-based repository fake better expresses the document-stream contract there.
+
+### 9.7 Kitchen/Menu store and callable tests
+
+Kitchen and Menu stores should be tested with three scenarios: initial synchronous/first snapshot, a later snapshot, and an error. Assert `loading()` becomes false on both data and handled-error paths. Assert the mapped item/order IDs, not only array length. For callable operations, replace the Functions adapter with a spy returning `of(successEnvelope)` or `throwError(() => error)`, call the store/use-case method, subscribe, and assert the exact payload contains restaurant ID, order ID, and permitted next status.
+
+The kitchen status test should cover the production transition map: `PENDING → ACCEPTED → PREPARING → READY → SERVED`. A test that merely expects “the method was called” can miss an invalid jump or a stale tenant value. Add a negative assertion that an error response populates the store error signal and does not optimistically mutate the order status.
+
+### 9.8 Angular emulator integration and E2E procedure
+
+The current repository’s checked-in specs are primarily unit/component/store tests; emulator validation is an operational integration procedure rather than a large separate suite. Run it when changing Rules, callable payloads, Firestore paths, Auth, or seed data:
 
 1. Start Auth, Firestore, and Functions emulators.
-2. Seed the staff account and demo tenant.
-3. Sign in at `/login`.
-4. Open `/tables/scanserve-demo?branchId=main-branch`.
-5. Create a table and confirm the card’s QR image/deep link.
-6. Inspect `restaurants/scanserve-demo/tables/{tableId}` with Firebase Admin SDK or Emulator UI.
-7. Open the QR-shaped Flutter URL and verify the customer route consumes `tenant`, `branch`, `table`, and `token`.
+2. Run `cd backend && npm run seed:menu` and confirm the staff/Auth profile exists.
+3. Load the dashboard against localhost and verify unauthenticated `/menu` redirects to `/login?redirect=%2Fmenu`.
+4. Log in with the emulator staff account and confirm Kitchen, Menu, and Tables routes open.
+5. Create or inspect a category and menu item under `restaurants/scanserve-demo`, then verify `categoryId`, `categoryName`, `parentCategoryId`, `branchId`, flags, and timestamps.
+6. Create table 12 in `main-branch`; verify `restaurants/scanserve-demo/tables/{tableId}` and the exact QR URL.
+7. Open the QR URL in Flutter, add the menu item, and verify `carts/cart_{customerSessionId}` uses the actual menu document ID.
+8. Submit the order and verify both order mirrors plus `orderItems` and `orderRequests`.
+9. Return to Angular Kitchen and advance each valid status through the callable. Confirm an invalid transition is rejected and the UI remains consistent.
+10. Click Logout and verify Firebase Auth state is cleared and the next protected navigation returns to Login.
 
-Do not use a browser screenshot alone to assert a write. Verify the actual document path and all required fields.
+Do not use a browser screenshot alone to assert a write. Verify the actual document path, document ID, authenticated UID, callable response envelope, and all required fields. When an emulator integration fails, first compare path and ID values, then inspect Rules/function logs, then inspect mapper behavior.
+
+### 9.9 Coverage additions checklist
+
+When changing the QR contract, update the pure URL test with reserved-character cases and add a Flutter `SessionContext` round-trip case. When changing TableStore, keep one test for live stream settlement and one for active-branch rewriting. When changing menu category behavior, cover parent-only, child-selected, inline child, and explicit `null` parent cases. When changing a repository Observable, test first emission, subsequent emission, empty collection, mapping error, and unsubscribe behavior. When changing a callable payload, assert the exact tenant/order/status fields and test both success and error responses.
+
+Do not use `TestBed` in pure functions or URL specs; it adds setup noise and hides what is deterministic. Do use `TestBed` for providers, route observables, standalone components, and signal stores. Keep fakes at domain boundaries so tests fail for contract mistakes rather than for Firebase SDK internals.
 
 ## 10. Troubleshooting playbook
 
@@ -405,7 +687,7 @@ Treat QR tokens as sensitive capability values. They are needed by the customer 
 
 ## References
 
-[^1]: [Angular Architecture Specification — Part 1](../specifications/015-angular-architecture-part-1.md) and [System Overview](../architecture/001-system-overview.md)
+[^1]: [Angular Architecture Specification — Part 1](./specifications/015-angular-architecture-part-1.md) and [System Overview](./architecture/001-system-overview.md)
 [^2]: [Angular restaurant context](../apps/dashboard/src/app/shared/restaurant-context.ts)
 [^3]: [Angular app providers](../apps/dashboard/src/app/app.config.ts)
 [^4]: [Angular routes](../apps/dashboard/src/app/app.routes.ts)
@@ -421,4 +703,4 @@ Treat QR tokens as sensitive capability values. They are needed by the customer 
 [^14]: [Angular Table Management component](../apps/dashboard/src/app/features/tables/presentation/components/table-management.component.ts)
 [^15]: [Angular QR code pipe](../apps/dashboard/src/app/features/tables/presentation/qr-code.pipe.ts)
 [^16]: [Angular table tests](../apps/dashboard/src/app/features/tables)
-[^17]: [Firestore contract](firestore-contract.md)
+[^17]: [Firestore contract](specifications/firestore-contract.md)
