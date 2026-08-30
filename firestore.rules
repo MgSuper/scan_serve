@@ -120,9 +120,12 @@ service cloud.firestore {
     }
 
     // Legacy top-level order documents are used by backend status processing
-    // and the Angular kitchen compatibility path. They remain staff-only.
+    // and the Angular kitchen compatibility path. Customer tracking requires
+    // a public read stream addressed by the opaque order ID; writes remain
+    // staff-only.
     match /orders/{orderId} {
-      allow read, write: if isStaff();
+      allow read: if true;
+      allow write: if isStaff();
     }
 
     // Legacy catalog paths remain readable only where they were historically
